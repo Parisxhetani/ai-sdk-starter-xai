@@ -2,14 +2,16 @@
 
 import type React from "react"
 
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+
+import { ThemeToggle } from "@/components/theme-toggle"
+import { createClient } from "@/lib/supabase/client"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -39,7 +41,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center p-6">
+    <div className="relative flex min-h-screen w-full items-center justify-center p-6">
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <Card>
           <CardHeader className="text-center">
