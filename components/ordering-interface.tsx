@@ -15,7 +15,13 @@ import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { getCurrentFriday, isOrderingWindowOpen, getTimeUntilNextWindow, formatFridayDate } from "@/lib/utils/time"
+import {
+  getCurrentFriday,
+  isOrderingWindowOpen,
+  getTimeUntilNextWindow,
+  formatFridayDate,
+  getOrderingTimeframe,
+} from "@/lib/utils/time"
 import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
 
@@ -30,6 +36,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [isWindowOpen, setIsWindowOpen] = useState(false)
   const [timeUntilNext, setTimeUntilNext] = useState({ days: 0, hours: 0, minutes: 0 })
+  const [timeframe, setTimeframe] = useState({ startTime: "09:00", endTime: "12:30" })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,20 +70,34 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
   useEffect(() => {
     fetchData()
+    fetchTimeframe()
 
     // Update time every minute
     const interval = setInterval(() => {
-      setIsWindowOpen(isOrderingWindowOpen())
-      setTimeUntilNext(getTimeUntilNextWindow())
+      updateWindowStatus()
     }, 60000)
 
     return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
-    setIsWindowOpen(isOrderingWindowOpen())
-    setTimeUntilNext(getTimeUntilNextWindow())
+    updateWindowStatus()
   }, [])
+
+  const updateWindowStatus = async () => {
+    const windowOpen = await isOrderingWindowOpen()
+    const timeUntil = await getTimeUntilNextWindow()
+    const currentTimeframe = await getOrderingTimeframe()
+
+    setIsWindowOpen(windowOpen)
+    setTimeUntilNext(timeUntil)
+    setTimeframe(currentTimeframe)
+  }
+
+  const fetchTimeframe = async () => {
+    const currentTimeframe = await getOrderingTimeframe()
+    setTimeframe(currentTimeframe)
+  }
 
   const fetchData = async () => {
     try {
@@ -229,7 +250,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     {isOrdersLocked
                       ? "Locked by Admin"
                       : isWindowOpen
-                        ? "Open until 12:30"
+                        ? `Open until ${timeframe.endTime}`
                         : `Next: ${formatTimeUntil()}`}
                   </Badge>
                 </div>
