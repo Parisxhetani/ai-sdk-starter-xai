@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getOrderingTimeframe } from "@/lib/utils/time"
+import { getOrderingTimeframe, endTime, startTime } from "@/lib/utils/time"
 import type { User } from "@/lib/types"
 import { Clock, Save, AlertCircle } from "lucide-react"
 
@@ -16,8 +16,8 @@ interface TimeframeSettingsProps {
 }
 
 export function TimeframeSettings({ user }: TimeframeSettingsProps) {
-  const [startTime, setStartTime] = useState("09:00")
-  const [endTime, setEndTime] = useState("12:30")
+  const [startTime, setStartTime] = useState(endTime)
+  const [endTime, setEndTime] = useState(startTime)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
