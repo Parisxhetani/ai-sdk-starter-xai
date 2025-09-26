@@ -1,6 +1,5 @@
+// OrderingInterface.tsx
 "use client"
-
-import type React from "react"
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -21,15 +20,11 @@ import {
   getTimeUntilNextWindow,
   formatFridayDate,
   getOrderingTimeframe,
-  startTime,
-  endTime,
 } from "@/lib/utils/time"
 import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
 
-interface OrderingInterfaceProps {
-  user: User
-}
+interface OrderingInterfaceProps { user: User }
 
 export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const { signOut } = useAuth()
@@ -38,11 +33,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [isWindowOpen, setIsWindowOpen] = useState(false)
   const [timeUntilNext, setTimeUntilNext] = useState({ days: 0, hours: 0, minutes: 0 })
-  const [timeframe, setTimeframe] = useState({ startTime: startTime, endTime: endTime })
+  const [timeframe, setTimeframe] = useState<{ startTime: string; endTime: string }>({ startTime: "", endTime: "" })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Form state
   const [selectedItem, setSelectedItem] = useState("")
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
@@ -51,169 +45,99 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const supabase = createClient()
   const fridayDate = formatFridayDate(getCurrentFriday())
 
-  // Get available variants for selected item
-  const availableVariants = menuItems.filter((item) => item.item === selectedItem && item.active)
+  const availableVariants = menuItems.filter((i) => i.item === selectedItem && i.active)
 
-  // Calculate order summary
-  const orderSummary: OrderSummary[] = orders.reduce((acc, order) => {
-    const key = `${order.item}-${order.variant}`
-    const existing = acc.find((item) => `${item.item}-${item.variant}` === key)
-    if (existing) {
-      existing.count++
-    } else {
-      acc.push({ item: order.item, variant: order.variant, count: 1 })
-    }
+  const orderSummary: OrderSummary[] = orders.reduce((acc, o) => {
+    const key = `${o.item}-${o.variant}`
+    const hit = acc.find((x) => `${x.item}-${x.variant}` === key)
+    if (hit) hit.count++
+    else acc.push({ item: o.item, variant: o.variant, count: 1 })
     return acc
   }, [] as OrderSummary[])
 
-  // Get users who haven't ordered
-  const orderedUserIds = orders.map((order) => order.user_id)
-  const missingUsers = orders.length > 0 ? [] : [] // We'll need to fetch all users to calculate this properly
-
   useEffect(() => {
-    fetchData()
-    fetchTimeframe()
-
-    // Update time every minute
-    const interval = setInterval(() => {
-      updateWindowStatus()
-    }, 60000)
-
+    void fetchEverything()
+    const interval = setInterval(() => { void updateWindowStatus() }, 60_000)
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    updateWindowStatus()
-  }, [])
+  useEffect(() => { void updateWindowStatus() }, [])
+
+  const fetchEverything = async () => {
+    await Promise.all([fetchData(), fetchTimeframe()])
+  }
 
   const updateWindowStatus = async () => {
-    const windowOpen = await isOrderingWindowOpen()
-    const timeUntil = await getTimeUntilNextWindow()
-    const currentTimeframe = await getOrderingTimeframe()
-
-    setIsWindowOpen(windowOpen)
+    const [open, timeUntil, tf] = await Promise.all([
+      isOrderingWindowOpen(),
+      getTimeUntilNextWindow(),
+      getOrderingTimeframe(),
+    ])
+    setIsWindowOpen(open)
     setTimeUntilNext(timeUntil)
-    setTimeframe(currentTimeframe)
+    setTimeframe(tf)
   }
 
   const fetchTimeframe = async () => {
-    const currentTimeframe = await getOrderingTimeframe()
-    setTimeframe(currentTimeframe)
+    const tf = await getOrderingTimeframe()
+    setTimeframe(tf)
   }
 
   const fetchData = async () => {
     try {
-      // Fetch menu items
       const { data: menuData } = await supabase.from("menu_items").select("*").eq("active", true).order("item, variant")
-
-      // Fetch all orders for this Friday
       const { data: ordersData } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          user:users(name, email)
-        `)
-        .eq("friday_date", fridayDate)
-        .order("created_at")
-
-      // Fetch current user's order
+        .from("orders").select(`*, user:users(name, email)`).eq("friday_date", fridayDate).order("created_at")
       const { data: currentOrderData } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("friday_date", fridayDate)
-        .single()
+        .from("orders").select("*").eq("user_id", user.id).eq("friday_date", fridayDate).single()
 
       setMenuItems(menuData || [])
       setOrders(ordersData || [])
       setCurrentOrder(currentOrderData || null)
 
-      // Pre-fill form if user has an existing order
       if (currentOrderData) {
         setSelectedItem(currentOrderData.item)
         setSelectedVariant(currentOrderData.variant)
         setNotes(currentOrderData.notes || "")
       }
-    } catch (error) {
-      console.error("Error fetching data:", error)
+    } catch (e) {
+      console.error("Error fetching data:", e)
     }
   }
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true); setError(null)
 
-    if (!selectedItem || !selectedVariant) {
-      setError("Please select both item and variant")
-      setIsLoading(false)
-      return
-    }
-
-    if (notes.length > 100) {
-      setError("Notes must be 100 characters or less")
-      setIsLoading(false)
-      return
-    }
+    if (!selectedItem || !selectedVariant) { setError("Please select both item and variant"); setIsLoading(false); return }
+    if (notes.length > 100) { setError("Notes must be 100 characters or less"); setIsLoading(false); return }
 
     try {
-      const orderData = {
-        user_id: user.id,
-        friday_date: fridayDate,
-        item: selectedItem,
-        variant: selectedVariant,
-        notes: notes.trim() || null,
-      }
-
+      const orderData = { user_id: user.id, friday_date: fridayDate, item: selectedItem, variant: selectedVariant, notes: notes.trim() || null }
       if (currentOrder) {
-        // Update existing order
         const { error } = await supabase.from("orders").update(orderData).eq("id", currentOrder.id)
         if (error) throw error
-
-        // Log update event
-        await supabase.from("events").insert({
-          type: "order_updated",
-          user_id: user.id,
-          payload: { order_id: currentOrder.id, ...orderData },
-        })
+        await supabase.from("events").insert({ type: "order_updated", user_id: user.id, payload: { order_id: currentOrder.id, ...orderData } })
       } else {
-        // Create new order
         const { error } = await supabase.from("orders").insert(orderData)
         if (error) throw error
-
-        // Log create event
-        await supabase.from("events").insert({
-          type: "order_created",
-          user_id: user.id,
-          payload: orderData,
-        })
+        await supabase.from("events").insert({ type: "order_created", user_id: user.id, payload: orderData })
       }
 
-      // Update phone number if provided
-      if (phone !== user.phone) {
-        await supabase.from("users").update({ phone }).eq("id", user.id)
-      }
-
-      // Refresh data
+      if (phone !== user.phone) await supabase.from("users").update({ phone }).eq("id", user.id)
       await fetchData()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "An error occurred")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const formatTimeUntil = () => {
-    if (timeUntilNext.days > 0) {
-      return `${timeUntilNext.days}d ${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
-    } else if (timeUntilNext.hours > 0) {
-      return `${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
-    } else {
-      return `${timeUntilNext.minutes}m`
-    }
-  }
+  const formatTimeUntil = () =>
+    timeUntilNext.days > 0 ? `${timeUntilNext.days}d ${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
+    : timeUntilNext.hours > 0 ? `${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
+    : `${timeUntilNext.minutes}m`
 
-  // Check if orders are locked
   const isOrdersLocked = currentOrder?.locked || false
   const canOrder = isWindowOpen && !isOrdersLocked
 
