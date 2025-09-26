@@ -32,47 +32,47 @@ You can deploy your own version to Vercel by clicking the button below:
 
 1. Clone the repository and install dependencies:
 
-   ```bash
+   \`\`\`bash
    npm install
    # or
    yarn install
    # or
    pnpm install
-   ```
+   \`\`\`
 
 2. Install the [Vercel CLI](https://vercel.com/docs/cli):
 
-   ```bash
+   \`\`\`bash
    npm i -g vercel
    # or
    yarn global add vercel
    # or
    pnpm install -g vercel
-   ```
+   \`\`\`
 
    Once installed, link your local project to your Vercel project:
 
-   ```bash
+   \`\`\`bash
    vercel link
-   ```
+   \`\`\`
 
    After linking, pull your environment variables:
 
-   ```bash
+   \`\`\`bash
    vercel env pull
-   ```
+   \`\`\`
 
    This will create a `.env.local` file with all the necessary environment variables.
 
 3. Run the development server:
 
-   ```bash
+   \`\`\`bash
    npm run dev
    # or
    yarn dev
    # or
    pnpm dev
-   ```
+   \`\`\`
 
 4. Open [http://localhost:3000](http://localhost:3000) to view your new AI chatbot application.
 

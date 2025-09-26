@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: "Vercel x xAI Chatbot",
   description:
     "This starter project uses xAI with the AI SDK via the Vercel Marketplace",
+    generator: 'v0.app'
 };
 
 export default function RootLayout({
