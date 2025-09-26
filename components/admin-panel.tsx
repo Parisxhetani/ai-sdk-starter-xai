@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { TimeframeSettings } from "@/components/timeframe-settings"
+import { AdminOrderManagement } from "@/components/admin-order-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
 import { Lock, Unlock, Download, MessageSquare, Settings, Users, Eye, Send, AlertTriangle } from "lucide-react"
@@ -254,6 +256,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   return (
     <div className="space-y-6">
+      <TimeframeSettings user={user} />
+
+      <AdminOrderManagement user={user} />
+
       {/* Admin Controls */}
       <Card>
         <CardHeader>

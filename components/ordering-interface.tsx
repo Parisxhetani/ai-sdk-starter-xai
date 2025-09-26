@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { getCurrentFriday, isOrderingWindowOpen, getTimeUntilNextWindow, formatFridayDate } from "@/lib/utils/time"
 import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
@@ -205,10 +206,13 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
               {user.role === "admin" && <Badge className="ml-2">Admin</Badge>}
             </p>
           </div>
-          <Button variant="outline" onClick={signOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="outline" onClick={signOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
 
         {/* Status Bar */}
