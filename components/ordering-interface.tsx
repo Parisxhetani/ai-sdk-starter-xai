@@ -21,6 +21,8 @@ import {
   getTimeUntilNextWindow,
   formatFridayDate,
   getOrderingTimeframe,
+  startTime,
+  endTime,
 } from "@/lib/utils/time"
 import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
@@ -36,7 +38,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [isWindowOpen, setIsWindowOpen] = useState(false)
   const [timeUntilNext, setTimeUntilNext] = useState({ days: 0, hours: 0, minutes: 0 })
-  const [timeframe, setTimeframe] = useState({ startTime: "09:00", endTime: "12:30" })
+  const [timeframe, setTimeframe] = useState({ startTime: startTime, endTime: endTime })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
