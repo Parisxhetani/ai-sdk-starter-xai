@@ -1,3 +1,4 @@
+// TimeframeSettings.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,93 +8,73 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getOrderingTimeframe, endTime, startTime } from "@/lib/utils/time"
+import { getOrderingTimeframe } from "@/lib/utils/time"
 import type { User } from "@/lib/types"
 import { Clock, Save, AlertCircle } from "lucide-react"
 
-interface TimeframeSettingsProps {
-  user: User
-}
+interface TimeframeSettingsProps { user: User }
 
 export function TimeframeSettings({ user }: TimeframeSettingsProps) {
-  const [startTime, setStartTime] = useState(endTime)
-  const [endTime, setEndTime] = useState(startTime)
+  const [startTimeVal, setStartTimeVal] = useState("")
+  const [endTimeVal, setEndTimeVal] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchTimeframe()
-  }, [])
+  useEffect(() => { void fetchTimeframe() }, [])
 
   const fetchTimeframe = async () => {
     try {
-      const { startTime: currentStart, endTime: currentEnd } = await getOrderingTimeframe()
-      setStartTime(currentStart)
-      setEndTime(currentEnd)
-    } catch (error) {
-      console.error("Error fetching timeframe:", error)
+      const { startTime, endTime } = await getOrderingTimeframe()
+      setStartTimeVal(startTime)
+      setEndTimeVal(endTime)
+    } catch (e) {
+      console.error("Error fetching timeframe:", e)
     }
   }
 
   const handleSave = async () => {
-    setIsLoading(true)
-    setError(null)
-    setSuccess(false)
+    setIsLoading(true); setError(null); setSuccess(false)
 
-    // Validate times
-    if (!startTime || !endTime) {
-      setError("Both start and end times are required")
-      setIsLoading(false)
-      return
+    if (!startTimeVal || !endTimeVal) {
+      setError("Both start and end times are required"); setIsLoading(false); return
     }
 
-    const [startHour, startMinute] = startTime.split(":").map(Number)
-    const [endHour, endMinute] = endTime.split(":").map(Number)
-    const startMinutes = startHour * 60 + startMinute
-    const endMinutes = endHour * 60 + endMinute
-
-    if (startMinutes >= endMinutes) {
-      setError("Start time must be before end time")
-      setIsLoading(false)
-      return
-    }
+    const [sh, sm] = startTimeVal.split(":").map(Number)
+    const [eh, em] = endTimeVal.split(":").map(Number)
+    const s = sh * 60 + sm, e = eh * 60 + em
+    if (s >= e) { setError("Start time must be before end time"); setIsLoading(false); return }
 
     try {
-      // Update settings
-      const { error: startError } = await supabase
+      // upsert both with a unique constraint on key (ensure DB has UNIQUE(settings.key))
+      const payload = [
+        { key: "ordering_start_time", value: startTimeVal, updated_at: new Date().toISOString() },
+        { key: "ordering_end_time",   value: endTimeVal,   updated_at: new Date().toISOString() },
+      ]
+
+      const { error: upsertErr } = await supabase
         .from("settings")
-        .upsert({ key: "ordering_start_time", value: startTime, updated_at: new Date().toISOString() })
+        .upsert(payload, { onConflict: "key" })
 
-      const { error: endError } = await supabase
-        .from("settings")
-        .upsert({ key: "ordering_end_time", value: endTime, updated_at: new Date().toISOString() })
+      if (upsertErr) throw upsertErr
 
-      if (startError || endError) {
-        throw new Error(startError?.message || endError?.message)
-      }
-
-      // Log the change
       await supabase.from("events").insert({
         type: "timeframe_updated",
         user_id: user.id,
-        payload: { start_time: startTime, end_time: endTime },
+        payload: { start_time: startTimeVal, end_time: endTimeVal },
       })
 
       setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to update timeframe")
+      setTimeout(() => setSuccess(false), 2500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update timeframe")
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (user.role !== "admin") {
-    return null
-  }
+  if (user.role !== "admin") return null
 
   return (
     <Card>
@@ -107,23 +88,13 @@ export function TimeframeSettings({ user }: TimeframeSettingsProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label htmlFor="start-time">Start Time</Label>
-            <Input
-              id="start-time"
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              disabled={isLoading}
-            />
+            <Input id="start-time" type="time" value={startTimeVal}
+                   onChange={(e) => setStartTimeVal(e.target.value)} disabled={isLoading}/>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="end-time">End Time</Label>
-            <Input
-              id="end-time"
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              disabled={isLoading}
-            />
+            <Input id="end-time" type="time" value={endTimeVal}
+                   onChange={(e) => setEndTimeVal(e.target.value)} disabled={isLoading}/>
           </div>
         </div>
 
@@ -143,7 +114,7 @@ export function TimeframeSettings({ user }: TimeframeSettingsProps) {
 
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Current window: {startTime} - {endTime} (Europe/Tirane timezone)
+            Current window: {startTimeVal || "—"} - {endTimeVal || "—"} (Europe/Tirane)
           </p>
           <Button onClick={handleSave} disabled={isLoading}>
             <Save className="mr-2 h-4 w-4" />
