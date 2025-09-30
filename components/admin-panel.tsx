@@ -66,8 +66,16 @@ export function AdminPanel({ user }: AdminPanelProps) {
       // Fetch menu items
       const { data: menuData } = await supabase.from("menu_items").select("*").order("item, variant")
 
-      // Fetch all users
-      const { data: usersData } = await supabase.from("users").select("*").order("name")
+      // Fetch all users via admin API (service role)
+      const usersResponse = await fetch("/api/admin/users", { credentials: "include", cache: "no-store" })
+      if (!usersResponse.ok) {
+        throw new Error("Failed to load users")
+      }
+      const usersJson = await usersResponse.json()
+      const usersData = ((usersJson?.users as any[]) ?? []).map((entry) => {
+        const { orders: _orders, ...user } = entry
+        return user as User
+      })
 
       // Check if orders are locked
       const locked = ordersData?.some((order) => order.locked) || false

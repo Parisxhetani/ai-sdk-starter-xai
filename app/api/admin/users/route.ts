@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     // Verify user is authenticated and admin
     const {
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all users with their order counts
-    const { data: users } = await supabase
+    const { data: users } = await adminSupabase
       .from("users")
       .select(`
         *,
@@ -45,6 +47,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     // Verify user is authenticated and admin
     const {
@@ -67,7 +70,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update user
-    const { data: updatedUser, error } = await supabase.from("users").update(updates).eq("id", userId).select().single()
+    const { data: updatedUser, error } = await adminSupabase.from("users").update(updates).eq("id", userId).select().single()
 
     if (error) {
       console.error("Error updating user:", error)
