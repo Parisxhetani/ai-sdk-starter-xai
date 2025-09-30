@@ -10,18 +10,27 @@
   --theme-blue-strong: #55a6f0;
   --theme-accent: #61c4e3;
   --theme-accent-soft: #e3f7ff;
-  --switch-off: #c8eadf;
+  --switch-off: #95d769;
   --switch-thumb: #ffffff;
+  --button-bg: #7dc3ff;
+  --button-bg-hover: #62b4fa;
+  --button-text: #04213b;
+  --button-outline: #55a6f0;
+  --button-ghost-bg: #d9edff;
+  --field-bg: #e5f8cf;
+  --field-bg-hover: #d4f0b1;
+  --field-border: #95d769;
+  --field-text: #183814;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: var(--theme-green);
-  --primary-foreground: #0b2208;
-  --secondary: var(--theme-blue);
-  --secondary-foreground: #04213b;
+  --primary: var(--button-bg);
+  --primary-foreground: var(--button-text);
+  --secondary: var(--button-bg);
+  --secondary-foreground: var(--button-text);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: var(--theme-accent-soft);
@@ -29,9 +38,9 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
   --border: #bde4f6;
-  --input: #a8d672;
-  --ring: var(--theme-accent);
-  --interactive-border: var(--theme-accent);
+  --input: var(--field-border);
+  --ring: var(--button-outline);
+  --interactive-border: var(--button-outline);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -40,12 +49,12 @@
   --radius: 0.625rem;
   --sidebar: #f3fbff;
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: var(--theme-accent);
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: var(--button-bg);
+  --sidebar-primary-foreground: var(--button-text);
   --sidebar-accent: var(--theme-accent-soft);
   --sidebar-accent-foreground: #0b2208;
   --sidebar-border: #bde4f6;
-  --sidebar-ring: var(--theme-accent);
+  --sidebar-ring: var(--button-outline);
 }
 
 .dark {
@@ -54,29 +63,38 @@
   --theme-blue: #5dbfff;
   --theme-blue-strong: #3fa9f5;
   --theme-accent: #4ccde0;
-  --theme-accent-soft: #1f3b45;
-  --switch-off: #20302c;
+  --theme-accent-soft: #123447;
+  --switch-off: #2f4a2f;
   --switch-thumb: #f4fbff;
+  --button-bg: #3fa9f5;
+  --button-bg-hover: #5dbfff;
+  --button-text: #f4fbff;
+  --button-outline: #4ccde0;
+  --button-ghost-bg: #123447;
+  --field-bg: #233525;
+  --field-bg-hover: #2e412f;
+  --field-border: #4fae45;
+  --field-text: #e4ffe0;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: var(--theme-green);
-  --primary-foreground: #041b05;
-  --secondary: var(--theme-blue);
-  --secondary-foreground: #02192c;
+  --primary: var(--button-bg);
+  --primary-foreground: var(--button-text);
+  --secondary: var(--button-bg);
+  --secondary-foreground: var(--button-text);
   --muted: oklch(0.269 0 0);
   --muted-foreground: #8acdec;
-  --accent: var(--theme-accent-soft);
+  --accent: var(--button-ghost-bg);
   --accent-foreground: #d3fff5;
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: #ffeef2;
   --border: #1f3d3a;
-  --input: #28462c;
-  --ring: var(--theme-accent);
-  --interactive-border: var(--theme-accent);
+  --input: var(--field-border);
+  --ring: var(--button-outline);
+  --interactive-border: var(--button-outline);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -84,66 +102,79 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: #111c16;
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: var(--theme-accent);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: var(--theme-accent-soft);
+  --sidebar-primary: var(--button-bg);
+  --sidebar-primary-foreground: var(--button-text);
+  --sidebar-accent: var(--button-ghost-bg);
   --sidebar-accent-foreground: #d3fff5;
   --sidebar-border: #1f3d3a;
-  --sidebar-ring: var(--theme-accent);
+  --sidebar-ring: var(--button-outline);
 }
 
 @layer components {
-  .btn-gradient-primary {
-    background-image: linear-gradient(135deg, var(--theme-green), var(--theme-blue));
+  .btn-solid-primary {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border-color: transparent;
   }
 
-  .btn-gradient-primary:hover,
-  .btn-gradient-primary:focus-visible {
-    background-image: linear-gradient(135deg, var(--theme-green-strong), var(--theme-blue-strong));
+  .btn-solid-primary:hover,
+  .btn-solid-primary:focus-visible {
+    background-color: var(--button-bg-hover);
+    color: var(--button-text);
   }
 
-  .btn-gradient-secondary {
-    background-image: linear-gradient(135deg, var(--theme-blue), var(--theme-green));
+  .btn-solid-secondary {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border-color: transparent;
+    opacity: 0.92;
   }
 
-  .btn-gradient-secondary:hover,
-  .btn-gradient-secondary:focus-visible {
-    background-image: linear-gradient(135deg, var(--theme-blue-strong), var(--theme-green-strong));
+  .btn-solid-secondary:hover,
+  .btn-solid-secondary:focus-visible {
+    opacity: 1;
+    background-color: var(--button-bg-hover);
+    color: var(--button-text);
   }
 
   .btn-outline-theme {
-    color: var(--theme-accent);
+    color: var(--button-bg);
+    border-color: var(--button-outline);
     background-color: transparent;
-    border-color: var(--theme-accent);
   }
 
   .btn-outline-theme:hover,
   .btn-outline-theme:focus-visible {
-    color: #ffffff;
+    background-color: var(--button-bg);
+    color: var(--button-text);
     border-color: transparent;
-    background-image: linear-gradient(135deg, var(--theme-green), var(--theme-blue));
   }
 
   .btn-ghost-theme {
-    color: var(--theme-accent);
+    color: var(--button-bg);
     background-color: transparent;
   }
 
   .btn-ghost-theme:hover,
   .btn-ghost-theme:focus-visible {
-    background-color: var(--theme-accent-soft);
+    background-color: var(--button-ghost-bg);
+    color: var(--button-text);
+  }
+
+  .btn-link-theme {
+    color: var(--button-bg);
   }
 
   .switch-track-theme {
-    background-color: var(--switch-off);
+    background-color: var(--field-border);
   }
 
   .switch-track-theme[data-state='checked'] {
-    background-image: linear-gradient(135deg, var(--theme-green), var(--theme-blue));
+    background-color: var(--button-bg);
   }
 
   .switch-track-theme[data-state='unchecked'] {
-    background-color: var(--switch-off);
+    background-color: var(--field-border);
   }
 
   .switch-thumb-theme {
