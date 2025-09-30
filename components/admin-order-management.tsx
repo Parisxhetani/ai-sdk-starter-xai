@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,9 +16,15 @@ import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
 
 interface AdminOrderManagementProps {
   user: User
+  onChange?: () => void
 }
 
-export function AdminOrderManagement({ user }: AdminOrderManagementProps) {
+export interface AdminOrderManagementHandle {
+  openCreateOrderForUser: (userId: string) => void
+  openEditOrder: (order: Order) => void
+}
+
+export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, AdminOrderManagementProps>(({ user, onChange }, ref) => {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -91,6 +97,21 @@ export function AdminOrderManagement({ user }: AdminOrderManagementProps) {
     }
     setShowOrderDialog(true)
   }
+
+  const openCreateOrderForUser = (targetUserId: string) => {
+    resetForm()
+    setSelectedUserId(targetUserId)
+    setShowOrderDialog(true)
+  }
+
+  const openEditOrder = (order: Order) => {
+    handleOpenDialog(order)
+  }
+
+  useImperativeHandle(ref, () => ({
+    openCreateOrderForUser,
+    openEditOrder,
+  }))
 
   const handleCloseDialog = () => {
     setShowOrderDialog(false)
@@ -170,6 +191,7 @@ export function AdminOrderManagement({ user }: AdminOrderManagementProps) {
 
       // Refresh data and close dialog
       await fetchData()
+      onChange?.()
       setTimeout(() => {
         handleCloseDialog()
       }, 1500)
@@ -203,6 +225,7 @@ export function AdminOrderManagement({ user }: AdminOrderManagementProps) {
       })
 
       await fetchData()
+      onChange?.()
       setSuccess("Order deleted successfully")
       setTimeout(() => setSuccess(null), 3000)
     } catch (error) {
@@ -405,4 +428,5 @@ export function AdminOrderManagement({ user }: AdminOrderManagementProps) {
       </CardContent>
     </Card>
   )
-}
+})
+AdminOrderManagement.displayName = "AdminOrderManagement"

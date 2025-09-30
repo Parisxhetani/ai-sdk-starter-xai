@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
+import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
+import { AdminUserManagement } from "@/components/admin-user-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
 import { Lock, Unlock, Download, MessageSquare, Settings, Users, Eye, Send, AlertTriangle } from "lucide-react"
@@ -30,6 +32,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [smsStatus, setSmsStatus] = useState<{ sent: boolean; timestamp?: string }>({ sent: false })
   const [smsLoading, setSmsLoading] = useState(false)
   const [showResendDialog, setShowResendDialog] = useState(false)
+
+  const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
   const supabase = createClient()
   const fridayDate = formatFridayDate(getCurrentFriday())
@@ -89,6 +93,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
       })
     } catch (error) {
       console.error("Error fetching admin data:", error)
+    }
+  }
+
+  const handleManageUserOrder = (targetUserId: string, order?: Order) => {
+    if (order) {
+      orderManagementRef.current?.openEditOrder(order)
+    } else {
+      orderManagementRef.current?.openCreateOrderForUser(targetUserId)
     }
   }
 
@@ -258,7 +270,15 @@ export function AdminPanel({ user }: AdminPanelProps) {
     <div className="space-y-6">
       <TimeframeSettings user={user} />
 
-      <AdminOrderManagement user={user} />
+      <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />
+
+      <AdminUserManagement
+        users={allUsers}
+        orders={orders}
+        currentUserId={user.id}
+        onRefresh={fetchAdminData}
+        onManageOrder={handleManageUserOrder}
+      />
 
       {/* Admin Controls */}
       <Card>
