@@ -52,7 +52,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const fetchData = async () => {
     try {
       // Fetch all users
-      const { data: usersData } = await supabase.from("users").select("*").eq("whitelisted", true).order("name")
+      const { data: usersData } = await supabase.from("users").select("*").order("name")
 
       // Fetch menu items
       const { data: menuData } = await supabase.from("menu_items").select("*").eq("active", true).order("item, variant")
