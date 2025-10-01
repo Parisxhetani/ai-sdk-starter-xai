@@ -6,17 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
 import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
-import { Lock, Unlock, Download, MessageSquare, Settings, Users, Eye, Send, AlertTriangle } from "lucide-react"
+import { Lock, Unlock, Download, Settings, Users, Eye, Printer } from "lucide-react"
 
 interface AdminPanelProps {
   user: User
@@ -29,9 +25,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [smsStatus, setSmsStatus] = useState<{ sent: boolean; timestamp?: string }>({ sent: false })
-  const [smsLoading, setSmsLoading] = useState(false)
-  const [showResendDialog, setShowResendDialog] = useState(false)
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
@@ -80,25 +73,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
       // Check if orders are locked
       const locked = ordersData?.some((order) => order.locked) || false
 
-      // Check SMS status for this Friday
-      const { data: smsEvent } = await supabase
-        .from("events")
-        .select("*")
-        .eq("type", "sms_sent")
-        .eq("payload->>friday_date", fridayDate)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
-
-      setOrders(ordersData || [])
-      setEvents(eventsData || [])
-      setMenuItems(menuData || [])
-      setAllUsers(usersData || [])
-      setIsLocked(locked)
-      setSmsStatus({
-        sent: !!smsEvent,
-        timestamp: smsEvent?.created_at,
-      })
     } catch (error) {
       console.error("Error fetching admin data:", error)
     }
@@ -174,63 +148,99 @@ export function AdminPanel({ user }: AdminPanelProps) {
     } catch (error) {
       console.error("Error exporting CSV:", error)
     }
-  }
-
-  const handleSendSMS = async () => {
-    setSmsLoading(true)
-    try {
-      const response = await fetch("/api/send-sms", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to send SMS")
-      }
-
-      await fetchAdminData()
-      alert(`SMS sent successfully! ${result.orderCount} orders sent to Tony's.`)
-    } catch (error) {
-      console.error("Error sending SMS:", error)
-      alert(error instanceof Error ? error.message : "Failed to send SMS")
-    } finally {
-      setSmsLoading(false)
+  }\n\n  const handlePrintOrders = () => {
+    if (!orders.length) {
+      window.print()
+      return
     }
-  }
 
-  const handleResendSMS = async () => {
-    setSmsLoading(true)
-    try {
-      const response = await fetch("/api/resend-sms", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ confirmed: true }),
+    const normalize = (value?: unknown) => (value ? String(value) : "")
+
+    const rowsHtml = orders
+      .map((order) => {
+        const createdAt = new Date(order.created_at).toLocaleString()
+        return [
+          '<tr>',
+          '  <td>' + normalize(order.user?.name) + '</td>',
+          '  <td>' + normalize(order.user?.email) + '</td>',
+          '  <td>' + normalize(order.user?.phone) + '</td>',
+          '  <td>' + normalize(order.item) + '</td>',
+          '  <td>' + normalize(order.variant) + '</td>',
+          '  <td>' + normalize(order.notes) + '</td>',
+          '  <td>' + createdAt + '</td>',
+          '</tr>',
+        ].join('
+')
       })
+      .join('
+')
 
-      const result = await response.json()
+    const summaryItems = Object.entries(
+      orders.reduce((acc, order) => {
+        const key = order.item + ' - ' + order.variant
+        acc[key] = (acc[key] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+    )
+      .map(([key, total]) => '<li>' + key + ': <strong>' + total + '</strong></li>')
+      .join('
+')
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to resend SMS")
-      }
+    const documentHtml = [
+      '<!DOCTYPE html>',
+      '<html>',
+      '  <head>',
+      '    <meta charSet="utf-8" />',
+      '    <title>Friday Orders - ' + fridayDate + '</title>',
+      '    <style>',
+      '      body { font-family: Arial, sans-serif; padding: 24px; color: #0b1d12; }',
+      '      h1 { margin-bottom: 8px; }',
+      '      .summary { margin-bottom: 24px; }',
+      '      table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }',
+      '      th, td { border: 1px solid #8bc4a3; padding: 8px; text-align: left; font-size: 13px; }',
+      '      th { background: #cff0d6; }',
+      '      tr:nth-child(even) { background: #f5fbff; }',
+      '      .badge { display: inline-block; padding: 4px 8px; border-radius: 12px; background: #7dc3ff; color: #04213b; font-size: 12px; margin-right: 12px; }',
+      '    </style>',
+      '  </head>',
+      '  <body>',
+      '    <h1>Friday Orders - ' + fridayDate + '</h1>',
+      '    <div class="summary">',
+      '      <span class="badge">' + orders.length + ' meals</span>',
+      '      <span>Locked: <strong>' + (isLocked ? 'Yes' : 'No') + '</strong></span>',
+      '      <ul>' + summaryItems + '</ul>',
+      '    </div>',
+      '    <table>',
+      '      <thead>',
+      '        <tr>',
+      '          <th>Name</th>',
+      '          <th>Email</th>',
+      '          <th>Phone</th>',
+      '          <th>Item</th>',
+      '          <th>Variant</th>',
+      '          <th>Notes</th>',
+      '          <th>Placed At</th>',
+      '        </tr>',
+      '      </thead>',
+      '      <tbody>' + rowsHtml + '</tbody>',
+      '    </table>',
+      '  </body>',
+      '</html>',
+    ].join('
+')
 
-      await fetchAdminData()
-      setShowResendDialog(false)
-      alert(`SMS resent successfully! ${result.orderCount} orders sent to Tony's.`)
-    } catch (error) {
-      console.error("Error resending SMS:", error)
-      alert(error instanceof Error ? error.message : "Failed to send SMS")
-    } finally {
-      setSmsLoading(false)
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!printWindow) {
+      alert('Unable to open print preview. Please allow popups for this site.')
+      return
     }
-  }
 
-  const toggleMenuItem = async (itemId: string, currentActive: boolean) => {
+    printWindow.document.open()
+    printWindow.document.write(documentHtml)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }\n\n  const toggleMenuItem = async (itemId: string, currentActive: boolean) => {
     try {
       const { error } = await supabase.from("menu_items").update({ active: !currentActive }).eq("id", itemId)
 
@@ -249,30 +259,13 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
   }
 
-  const generateSMSText = () => {
-    const orderSummary = orders.reduce(
-      (acc, order) => {
-        const key = `${order.item}: ${order.variant}`
-        acc[key] = (acc[key] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
-
-    const summaryText = Object.entries(orderSummary)
-      .map(([item, count]) => `${item} x${count}`)
-      .join(", ")
-
-    return `Friday order – Tony's (Tirana): ${orders.length} meals. ${summaryText}. Contact: ${user.phone || "N/A"}.`
-  }
-
   if (user.role !== "admin") {
     return null
   }
 
   const orderedUserIds = orders.map((order) => order.user_id)
   const missingUsers = allUsers.filter((u) => u.whitelisted && !orderedUserIds.includes(u.id))
-  const canSendSMS = isLocked && orders.length > 0
+  const uniqueItemsCount = new Set(orders.map((order) => `${order.item}::${order.variant}`)).size
 
   return (
     <div className="space-y-6">
@@ -308,70 +301,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
               Export CSV
             </Button>
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={!canSendSMS}>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Preview SMS
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>SMS Preview</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Message to Tony's:</Label>
-                    <Textarea value={generateSMSText()} readOnly className="mt-2" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    This message will be sent to Tony's restaurant when you click "Send to Tony's".
-                  </p>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button
-              onClick={handleSendSMS}
-              disabled={!canSendSMS || smsLoading || smsStatus.sent}
-              variant={smsStatus.sent ? "secondary" : "default"}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              {smsLoading ? "Sending..." : smsStatus.sent ? "SMS Sent" : "Send to Tony's"}
+            <Button onClick={handlePrintOrders} variant="outline">
+              <Printer className="mr-2 h-4 w-4" />
+              Print Order Sheet
             </Button>
-
-            {smsStatus.sent && (
-              <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" disabled={smsLoading}>
-                    <Send className="mr-2 h-4 w-4" />
-                    Resend SMS
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-500" />
-                      Confirm Resend SMS
-                    </DialogTitle>
-                  </DialogHeader>
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Are you sure you want to resend the SMS to Tony's? This will send a duplicate order message.
-                    </AlertDescription>
-                  </Alert>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowResendDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleResendSMS} disabled={smsLoading}>
-                      {smsLoading ? "Resending..." : "Confirm Resend"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -401,20 +334,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{smsStatus.sent ? "Sent" : "Not Sent"}</p>
-                <p className="text-sm text-muted-foreground">SMS Status</p>
-                {smsStatus.timestamp && (
-                  <p className="text-xs text-muted-foreground">{new Date(smsStatus.timestamp).toLocaleString()}</p>
-                )}
+                <p className="text-2xl font-bold">{uniqueItemsCount}</p>
+                <p className="text-sm text-muted-foreground">Distinct Items</p>
               </div>
-              <Badge variant={smsStatus.sent ? "default" : "secondary"}>
-                {smsStatus.sent ? "Delivered" : "Pending"}
-              </Badge>
+              <Badge variant="outline">Menu</Badge>
             </div>
           </CardContent>
         </Card>
@@ -499,3 +426,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
+
+

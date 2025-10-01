@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
+import { AdminOrderInsights } from "@/components/admin-order-insights"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
   getCurrentFriday,
@@ -336,6 +337,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         </div>
 
         {/* Admin Panel */}
+        <AdminOrderInsights orders={orders} />
+
         {user.role === "admin" && (
           <div>
             <AdminPanel user={user} />
@@ -345,3 +348,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     </div>
   )
 }
+
+
+
+

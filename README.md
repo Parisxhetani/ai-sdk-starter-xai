@@ -1,6 +1,6 @@
 # Friday Tony's Orders
 
-A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for a team of 10 with time-based ordering windows, admin controls, and SMS integration.
+A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for a team of 10 with time-based ordering windows, admin controls, printable summaries, and visual insights.
 
 ## Features
 
@@ -8,8 +8,8 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 - **Time-based Ordering**: Friday 09:00-12:30 (Europe/Tirane timezone) ordering window
 - **Menu Management**: Admin-controlled menu items with variants
 - **Order Management**: One order per user per Friday, editable until locked
-- **Admin Dashboard**: Lock orders, export CSV, manage menu, audit logs
-- **SMS Integration**: Send aggregated orders to Tony's restaurant via Twilio
+- **Admin Dashboard**: Lock orders, export CSV, print-ready order sheets, manage menu, audit logs
+- **Order Insights**: Charts highlighting most ordered items and teammates keeping the streak
 - **Real-time Updates**: Live team order summary and status
 
 ## Tech Stack
@@ -17,23 +17,15 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 - **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API routes, Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth with Row Level Security
-- **SMS**: Twilio API integration
 - **Deployment**: Vercel
 
-## Environment Variables
-
-Required environment variables:
+## Environment Variables\r\n\r\nRequired environment variables:
 
 \`\`\`env
 # Supabase (automatically configured in v0)
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# Twilio SMS (optional - will use mock SMS if not provided)
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_PHONE_NUMBER=your_twilio_phone_number
 
 # Development redirect URL
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
@@ -48,11 +40,7 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 
 2. **Whitelist Configuration**: Update the whitelisted emails in the settings table or modify `002_seed_data.sql` before running.
 
-3. **SMS Configuration**: 
-   - Add Twilio credentials to environment variables for production SMS
-   - Without Twilio, the system will use mock SMS (logs to console)
-
-4. **Admin Setup**: The first user with email `admin@company.com` will automatically get admin role.
+3. **Admin Setup**: The first user with email `admin@company.com` will automatically get admin role.
 
 ## Usage
 
@@ -65,9 +53,9 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 ### For Admins
 1. Sign in with admin account
 2. Monitor team orders and missing users
-3. Lock orders when ready to send to restaurant
+3. Lock orders when ready to notify the restaurant
 4. Export CSV for record keeping
-5. Send SMS to Tony's restaurant with order summary
+5. Print the consolidated order sheet and call Tony's restaurant
 6. Manage menu items (enable/disable variants)
 7. View audit logs of all system activity
 
@@ -77,13 +65,6 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 - **Closed**: All other times with countdown to next window
 - **Locked**: Admin can lock orders to prevent further changes
 - **One Order Rule**: Each user can have only one order per Friday
-
-## SMS Format
-
-When sent to Tony's restaurant:
-\`\`\`
-Friday order – Tony's (Tirana): 8 meals. Enchilada: Chicken x2, Beef x1. Burgers: Philly x3, Jalapeño x2. Contact: +355691234567.
-\`\`\`
 
 ## Security Features
 
