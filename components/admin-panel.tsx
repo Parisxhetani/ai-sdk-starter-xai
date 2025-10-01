@@ -150,25 +150,25 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
   }\n\n  const handlePrintOrders = () => {
     if (!orders.length) {
-      window.print()
+      alert('No orders available to print yet.')
       return
     }
 
-    const normalize = (value?: unknown) => (value ? String(value) : "")
+    const normalize = (value?: unknown) => (value ? String(value) : '')
 
     const rowsHtml = orders
       .map((order) => {
         const createdAt = new Date(order.created_at).toLocaleString()
         return [
-          '<tr>',
-          '  <td>' + normalize(order.user?.name) + '</td>',
-          '  <td>' + normalize(order.user?.email) + '</td>',
-          '  <td>' + normalize(order.user?.phone) + '</td>',
-          '  <td>' + normalize(order.item) + '</td>',
-          '  <td>' + normalize(order.variant) + '</td>',
-          '  <td>' + normalize(order.notes) + '</td>',
-          '  <td>' + createdAt + '</td>',
-          '</tr>',
+          '        <tr>',
+          '          <td>' + normalize(order.user?.name) + '</td>',
+          '          <td>' + normalize(order.user?.email) + '</td>',
+          '          <td>' + normalize(order.user?.phone) + '</td>',
+          '          <td>' + normalize(order.item) + '</td>',
+          '          <td>' + normalize(order.variant) + '</td>',
+          '          <td>' + normalize(order.notes) + '</td>',
+          '          <td>' + createdAt + '</td>',
+          '        </tr>',
         ].join('
 ')
       })
@@ -182,7 +182,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
         return acc
       }, {} as Record<string, number>),
     )
-      .map(([key, total]) => '<li>' + key + ': <strong>' + total + '</strong></li>')
+      .map(([key, total]) => '        <li>' + key + ': <strong>' + total + '</strong></li>')
       .join('
 ')
 
@@ -201,6 +201,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '      th { background: #cff0d6; }',
       '      tr:nth-child(even) { background: #f5fbff; }',
       '      .badge { display: inline-block; padding: 4px 8px; border-radius: 12px; background: #7dc3ff; color: #04213b; font-size: 12px; margin-right: 12px; }',
+      '      ul { list-style: none; padding-left: 0; margin: 12px 0 0 0; }',
+      '      li { margin-bottom: 4px; }',
       '    </style>',
       '  </head>',
       '  <body>',
@@ -208,7 +210,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '    <div class="summary">',
       '      <span class="badge">' + orders.length + ' meals</span>',
       '      <span>Locked: <strong>' + (isLocked ? 'Yes' : 'No') + '</strong></span>',
-      '      <ul>' + summaryItems + '</ul>',
+      '      <ul>',
+      summaryItems,
+      '      </ul>',
       '    </div>',
       '    <table>',
       '      <thead>',
@@ -222,7 +226,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '          <th>Placed At</th>',
       '        </tr>',
       '      </thead>',
-      '      <tbody>' + rowsHtml + '</tbody>',
+      '      <tbody>',
+      rowsHtml,
+      '      </tbody>',
       '    </table>',
       '  </body>',
       '</html>',
@@ -240,7 +246,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
     printWindow.document.close()
     printWindow.focus()
     printWindow.print()
-  }\n\n  const toggleMenuItem = async (itemId: string, currentActive: boolean) => {
+  }
+
+  const toggleMenuItem = async (itemId: string, currentActive: boolean) => {
     try {
       const { error } = await supabase.from("menu_items").update({ active: !currentActive }).eq("id", itemId)
 
@@ -426,6 +434,12 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
+
+
+
+
+
 
 
 
