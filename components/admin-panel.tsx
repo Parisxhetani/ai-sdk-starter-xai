@@ -148,7 +148,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
     } catch (error) {
       console.error("Error exporting CSV:", error)
     }
-  }\n\n  const handlePrintOrders = () => {
+  }
+
+  const handlePrintOrders = () => {
     if (!orders.length) {
       alert('No orders available to print yet.')
       return
