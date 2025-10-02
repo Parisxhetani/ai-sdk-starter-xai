@@ -11,6 +11,7 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 - **Admin Dashboard**: Lock orders, export CSV, print-ready order sheets, manage menu, audit logs
 - **Order Insights**: Charts highlighting most ordered items and teammates keeping the streak
 - **Real-time Updates**: Live team order summary and status
+- **Team Chat**: Friday-wide live chat so everyone can coordinate in real time
 
 ## Tech Stack
 

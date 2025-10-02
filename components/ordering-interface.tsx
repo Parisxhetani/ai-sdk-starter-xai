@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
+import { ChatPanel } from "@/components/chat-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
 
@@ -334,110 +335,112 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
             </CardContent>
           </Card>
 
-          {/* Team Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Orders</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="font-medium">Most Ordered This Week</h4>
-                  {topItemData.length > 0 && (
-                    <Badge variant="outline">Top {topItemData.length}</Badge>
-                  )}
-                </div>
-                {topItemData.length > 0 ? (
-                  <div className="h-56 w-full rounded-xl bg-[var(--accent)]/40 p-3">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={topItemData}>
-                        <CartesianGrid stroke="#E1F2FF" strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fill: "var(--field-text)", fontSize: 12 }}
-                          tickLine={false}
-                          axisLine={{ stroke: "var(--border)" }}
-                          height={48}
-                          interval={0}
-                          angle={-15}
-                          textAnchor="end"
-                        />
-                        <YAxis
-                          allowDecimals={false}
-                          tick={{ fill: "var(--field-text)", fontSize: 12 }}
-                          tickLine={false}
-                          axisLine={{ stroke: "var(--border)" }}
-                        />
-                        <RechartsTooltip
-                          cursor={{ fill: "rgba(20, 146, 230, 0.08)" }}
-                          contentStyle={{
-                            backgroundColor: "var(--background)",
-                            borderRadius: "0.75rem",
-                            border: "1px solid var(--border)",
-                            color: "var(--field-text)",
-                          }}
-                        />
-                        <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                          {topItemData.map((_, index) => (
-                            <Cell
-                              key={`top-item-${index}`}
-                              fill={FACILIZATION_COLORS[index % FACILIZATION_COLORS.length]}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+          <div className="flex flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Orders</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="font-medium">Most Ordered This Week</h4>
+                    {topItemData.length > 0 && (
+                      <Badge variant="outline">Top {topItemData.length}</Badge>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Order trends will appear once teammates start ordering.
-                  </p>
-                )}
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="mb-2 font-medium">Order Summary</h4>
-                <div className="space-y-2">
-                  {orderSummary.map((summary) => (
-                    <div key={`${summary.item}-${summary.variant}`} className="flex justify-between text-sm">
-                      <span>
-                        {summary.item} - {summary.variant}
-                      </span>
-                      <Badge variant="secondary">x{summary.count}</Badge>
+                  {topItemData.length > 0 ? (
+                    <div className="h-56 w-full rounded-xl bg-[var(--accent)]/40 p-3">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topItemData}>
+                          <CartesianGrid stroke="#E1F2FF" strokeDasharray="3 3" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fill: "var(--field-text)", fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={{ stroke: "var(--border)" }}
+                            height={48}
+                            interval={0}
+                            angle={-15}
+                            textAnchor="end"
+                          />
+                          <YAxis
+                            allowDecimals={false}
+                            tick={{ fill: "var(--field-text)", fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={{ stroke: "var(--border)" }}
+                          />
+                          <RechartsTooltip
+                            cursor={{ fill: "rgba(20, 146, 230, 0.08)" }}
+                            contentStyle={{
+                              backgroundColor: "var(--background)",
+                              borderRadius: "0.75rem",
+                              border: "1px solid var(--border)",
+                              color: "var(--field-text)",
+                            }}
+                          />
+                          <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                            {topItemData.map((_, index) => (
+                              <Cell
+                                key={`top-item-${index}`}
+                                fill={FACILIZATION_COLORS[index % FACILIZATION_COLORS.length]}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                  {orderSummary.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No orders yet</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Order trends will appear once teammates start ordering.
+                    </p>
                   )}
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div>
-                <h4 className="mb-2 font-medium">Individual Orders</h4>
-                <div className="max-h-64 space-y-2 overflow-y-auto">
-                  {orders.map((order) => (
-                    <div key={order.id} className="flex items-start justify-between text-sm">
-                      <div>
-                        <p className="font-medium">{order.user?.name}</p>
-                        <p className="text-muted-foreground">
-                          {order.item} - {order.variant}
-                        </p>
-                        {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
+                <div>
+                  <h4 className="mb-2 font-medium">Order Summary</h4>
+                  <div className="space-y-2">
+                    {orderSummary.map((summary) => (
+                      <div key={`${summary.item}-${summary.variant}`} className="flex justify-between text-sm">
+                        <span>
+                          {summary.item} - {summary.variant}
+                        </span>
+                        <Badge variant="secondary">x{summary.count}</Badge>
                       </div>
-                      {order.user_id === user.id && <Badge variant="outline">You</Badge>}
-                    </div>
-                  ))}
-                  {orders.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No orders yet</p>
-                  )}
+                    ))}
+                    {orderSummary.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No orders yet</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                <Separator />
+
+                <div>
+                  <h4 className="mb-2 font-medium">Individual Orders</h4>
+                  <div className="max-h-64 space-y-2 overflow-y-auto">
+                    {orders.map((order) => (
+                      <div key={order.id} className="flex items-start justify-between text-sm">
+                        <div>
+                          <p className="font-medium">{order.user?.name}</p>
+                          <p className="text-muted-foreground">
+                            {order.item} - {order.variant}
+                          </p>
+                          {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
+                        </div>
+                        {order.user_id === user.id && <Badge variant="outline">You</Badge>}
+                      </div>
+                    ))}
+                    {orders.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No orders yet</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <ChatPanel currentUser={user} />
+          </div>
         </div>
 
         {/* Admin Tools */}
@@ -453,4 +456,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     </div>
   )
 }
+
+
+
+
 
