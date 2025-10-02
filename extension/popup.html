@@ -3,14 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tony''s Orders</title>
+  <title>Tony's Orders</title>
+  <link rel="icon" type="image/png" href="icons/icon-128.png" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <main id="app">
     <header class="app-header">
-      <h1>Tony''s Orders</h1>
-      <p class="tagline">Friday lunch in a click.</p>
+      <img src="icons/icon-128.png" alt="Facilization logo" class="app-logo" />
+      <div>
+        <h1>Tony's Orders</h1>
+        <p class="tagline">Friday lunch in a click.</p>
+      </div>
     </header>
 
     <div id="status-message" class="status hidden"></div>
@@ -60,7 +64,7 @@
 
         <label class="field">
           <span>Notes <small>(optional, 100 char max)</small></span>
-          <textarea id="notes-input" maxlength="100" rows="3" placeholder="No onions, extra sauce..." ></textarea>
+          <textarea id="notes-input" maxlength="100" rows="3" placeholder="No onions, extra sauce..."></textarea>
         </label>
 
         <button type="submit" id="submit-order-button">Place Order</button>
@@ -73,7 +77,7 @@
       </section>
     </section>
 
-    <div id="loading" class="loading hidden">Loading…</div>
+    <div id="loading" class="loading hidden">Loading...</div>
   </main>
 
   <script src="config.js"></script>
