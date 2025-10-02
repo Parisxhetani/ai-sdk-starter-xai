@@ -4,7 +4,7 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 
 ## Features
 
-- **Authentication**: Email/password with whitelist-based access control
+- **Authentication**: Email/password with whitelist-based access control + self-service password reset
 - **Time-based Ordering**: Friday 09:00-12:30 (Europe/Tirane timezone) ordering window
 - **Menu Management**: Admin-controlled menu items with variants
 - **Order Management**: One order per user per Friday, editable until locked
@@ -94,3 +94,4 @@ npm run dev
 \`\`\`
 
 Database migrations are handled through the SQL scripts in the `scripts/` folder.
+

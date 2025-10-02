@@ -1,6 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import crypto from "crypto"
+
+const SUCCESS_MESSAGE =
+  "If an account with that email exists, a password reset link has been sent. Check your inbox in a moment."
+
+function getRedirectBase() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+    "http://localhost:3000"
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,69 +20,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase()
     const supabase = await createClient()
 
-    // Check if user exists and is whitelisted
     const { data: user } = await supabase
       .from("users")
       .select("id, email, name, whitelisted")
-      .eq("email", email.toLowerCase())
+      .eq("email", normalizedEmail)
       .single()
 
-    if (!user) {
-      // Don't reveal if user exists or not for security
-      return NextResponse.json({
-        success: true,
-        message: "If an account with that email exists, a password reset link has been sent.",
-      })
+    if (!user || !user.whitelisted) {
+      // keep response generic to avoid account enumeration
+      return NextResponse.json({ success: true, message: SUCCESS_MESSAGE })
     }
 
-    if (!user.whitelisted) {
-      return NextResponse.json({
-        success: true,
-        message: "If an account with that email exists, a password reset link has been sent.",
-      })
-    }
+    const redirectTo = `${getRedirectBase()}/auth/reset-password`
 
-    // Generate secure token
-    const token = crypto.randomBytes(32).toString("hex")
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
-
-    // Store token in database
-    const { error: tokenError } = await supabase.from("password_reset_tokens").insert({
-      user_id: user.id,
-      token,
-      expires_at: expiresAt.toISOString(),
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo,
     })
 
-    if (tokenError) {
-      console.error("Error storing password reset token:", tokenError)
-      return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
+    if (resetError) {
+      console.error("Error sending Supabase reset email:", resetError.message)
+      return NextResponse.json({ error: "Failed to send reset email" }, { status: 500 })
     }
 
-    // In a real app, you would send an email here
-    // For now, we'll just log it and return success
-    const resetUrl = `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || "http://localhost:3000"}/auth/reset-password?token=${token}`
-
-    console.log(`[v0] Password reset requested for ${email}`)
-    console.log(`[v0] Reset URL: ${resetUrl}`)
-    console.log(`[v0] Token expires at: ${expiresAt.toISOString()}`)
-
-    // Log the event
     await supabase.from("events").insert({
-      type: "password_reset_requested",
+      type: "password_reset_email_sent",
       user_id: user.id,
       payload: {
         email: user.email,
-        token_expires_at: expiresAt.toISOString(),
+        redirect_to: redirectTo,
+        provider: "supabase",
       },
     })
 
     return NextResponse.json({
       success: true,
-      message: "If an account with that email exists, a password reset link has been sent.",
-      // In development, include the reset URL for testing
-      ...(process.env.NODE_ENV === "development" && { resetUrl }),
+      message: SUCCESS_MESSAGE,
     })
   } catch (error) {
     console.error("Password reset request error:", error)
