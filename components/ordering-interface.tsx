@@ -1,7 +1,7 @@
 // OrderingInterface.tsx
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,8 @@ import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
+
 import {
   getCurrentFriday,
   isOrderingWindowOpen,
@@ -26,6 +28,15 @@ import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
 
 interface OrderingInterfaceProps { user: User }
+
+const FACILIZATION_COLORS = [
+  "#1492E6",
+  "#3A88CF",
+  "#84BB2A",
+  "#0693E3",
+  "#1D1D1D",
+] as const
+
 
 export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const { signOut } = useAuth()
@@ -48,13 +59,33 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
   const availableVariants = menuItems.filter((i) => i.item === selectedItem && i.active)
 
-  const orderSummary: OrderSummary[] = orders.reduce((acc, o) => {
-    const key = `${o.item}-${o.variant}`
-    const hit = acc.find((x) => `${x.item}-${x.variant}` === key)
-    if (hit) hit.count++
-    else acc.push({ item: o.item, variant: o.variant, count: 1 })
-    return acc
-  }, [] as OrderSummary[])
+  const { orderSummary, topItemData } = useMemo(() => {
+    const summaryMap = new Map<string, OrderSummary>()
+
+    orders.forEach((orderItem) => {
+      const key = `${orderItem.item}::${orderItem.variant}`
+      const existing = summaryMap.get(key)
+
+      if (existing) {
+        existing.count += 1
+      } else {
+        summaryMap.set(key, {
+          item: orderItem.item,
+          variant: orderItem.variant,
+          count: 1,
+        })
+      }
+    })
+
+    const summaryList = Array.from(summaryMap.values()).sort((a, b) => b.count - a.count)
+
+    const chartData = summaryList.slice(0, 5).map((entry) => ({
+      label: entry.variant ? `${entry.item} (${entry.variant})` : entry.item,
+      value: entry.count,
+    }))
+
+    return { orderSummary: summaryList, topItemData: chartData }
+  }, [orders])
 
   useEffect(() => {
     void fetchEverything()
@@ -294,31 +325,88 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
             <CardHeader>
               <CardTitle>Team Orders</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Order Summary */}
+            <CardContent className="space-y-6">
               <div>
-                <h4 className="font-medium mb-2">Order Summary</h4>
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="font-medium">Most Ordered This Week</h4>
+                  {topItemData.length > 0 && (
+                    <Badge variant="outline">Top {topItemData.length}</Badge>
+                  )}
+                </div>
+                {topItemData.length > 0 ? (
+                  <div className="h-56 w-full rounded-xl bg-[var(--accent)]/40 p-3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topItemData}>
+                        <CartesianGrid stroke="#E1F2FF" strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: "var(--field-text)", fontSize: 12 }}
+                          tickLine={false}
+                          axisLine={{ stroke: "var(--border)" }}
+                          height={48}
+                          interval={0}
+                          angle={-15}
+                          textAnchor="end"
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fill: "var(--field-text)", fontSize: 12 }}
+                          tickLine={false}
+                          axisLine={{ stroke: "var(--border)" }}
+                        />
+                        <RechartsTooltip
+                          cursor={{ fill: "rgba(20, 146, 230, 0.08)" }}
+                          contentStyle={{
+                            backgroundColor: "var(--background)",
+                            borderRadius: "0.75rem",
+                            border: "1px solid var(--border)",
+                            color: "var(--field-text)",
+                          }}
+                        />
+                        <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                          {topItemData.map((_, index) => (
+                            <Cell
+                              key={`top-item-${index}`}
+                              fill={FACILIZATION_COLORS[index % FACILIZATION_COLORS.length]}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Order trends will appear once teammates start ordering.
+                  </p>
+                )}
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="mb-2 font-medium">Order Summary</h4>
                 <div className="space-y-2">
-                  {orderSummary.map((summary, index) => (
-                    <div key={index} className="flex justify-between text-sm">
+                  {orderSummary.map((summary) => (
+                    <div key={`${summary.item}-${summary.variant}`} className="flex justify-between text-sm">
                       <span>
                         {summary.item} - {summary.variant}
                       </span>
                       <Badge variant="secondary">x{summary.count}</Badge>
                     </div>
                   ))}
-                  {orderSummary.length === 0 && <p className="text-sm text-muted-foreground">No orders yet</p>}
+                  {orderSummary.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No orders yet</p>
+                  )}
                 </div>
               </div>
 
               <Separator />
 
-              {/* Individual Orders */}
               <div>
-                <h4 className="font-medium mb-2">Individual Orders</h4>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <h4 className="mb-2 font-medium">Individual Orders</h4>
+                <div className="max-h-64 space-y-2 overflow-y-auto">
                   {orders.map((order) => (
-                    <div key={order.id} className="flex justify-between items-start text-sm">
+                    <div key={order.id} className="flex items-start justify-between text-sm">
                       <div>
                         <p className="font-medium">{order.user?.name}</p>
                         <p className="text-muted-foreground">
@@ -329,26 +417,25 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                       {order.user_id === user.id && <Badge variant="outline">You</Badge>}
                     </div>
                   ))}
-                  {orders.length === 0 && <p className="text-sm text-muted-foreground">No orders yet</p>}
+                  {orders.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No orders yet</p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Admin Panel */}
-        <AdminOrderInsights orders={orders} />
-
+        {/* Admin Tools */}
         {user.role === "admin" && (
-          <div>
-            <AdminPanel user={user} />
-          </div>
+          <>
+            <AdminOrderInsights orders={orders} />
+            <div>
+              <AdminPanel user={user} />
+            </div>
+          </>
         )}
       </div>
     </div>
   )
 }
-
-
-
-

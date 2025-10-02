@@ -26,12 +26,13 @@ interface ChartDatum {
   value: number
 }
 
+// Facilization brand palette extracted from facilization.com
 const chartPalette = [
-  "var(--button-bg)",
-  "var(--theme-blue-strong)",
-  "var(--theme-green)",
-  "var(--field-border)",
-  "var(--button-outline)",
+  "#1492E6",
+  "#3A88CF",
+  "#84BB2A",
+  "#0693E3",
+  "#1D1D1D",
 ]
 
 export function AdminOrderInsights({ orders }: AdminOrderInsightsProps) {
