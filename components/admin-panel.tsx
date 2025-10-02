@@ -171,11 +171,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
           '          <td>' + normalize(order.notes) + '</td>',
           '          <td>' + createdAt + '</td>',
           '        </tr>',
-        ].join('
-')
+        ].join("\n")
       })
-      .join('
-')
+      .join("\n")
 
     const summaryItems = Object.entries(
       orders.reduce((acc, order) => {
@@ -185,8 +183,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       }, {} as Record<string, number>),
     )
       .map(([key, total]) => '        <li>' + key + ': <strong>' + total + '</strong></li>')
-      .join('
-')
+      .join("\n")
 
     const documentHtml = [
       '<!DOCTYPE html>',
@@ -234,8 +231,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '    </table>',
       '  </body>',
       '</html>',
-    ].join('
-')
+    ].join("\n")
 
     const printWindow = window.open('', '_blank', 'noopener,noreferrer')
     if (!printWindow) {
@@ -436,12 +432,3 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
