@@ -16,6 +16,8 @@ interface ChatPanelProps {
 const MAX_MESSAGE_LENGTH = 1000
 const MESSAGE_LIMIT = 200
 
+type UserMeta = { name: string; email: string }
+
 export function ChatPanel({ currentUser }: ChatPanelProps) {
   const supabase = useMemo(() => createClient(), [])
   const [messages, setMessages] = useState<Message[]>([])
@@ -23,50 +25,49 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const userCache = useRef<Map<string, UserMeta>>(new Map())
 
   useEffect(() => {
-    void loadMessages()
+    let active = true
+    void primeChat()
+
     const channel = supabase
-      .channel("realtime:messages")
+      .channel("public:messages")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const { data } = await supabase
-            .from("messages")
-            .select("*, user:users(name, email)")
-            .eq("id", (payload.new as Message).id)
-            .single()
-
-          if (data) {
-            setMessages((prev) =>
-              [...prev.filter((msg) => msg.id !== (data as Message).id), data as Message].sort(
-                (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-              ),
-            )
-          }
+          if (!active) return
+          const enriched = await enrichMessage(payload.new as Message)
+          setMessages((prev) =>
+            [...prev.filter((msg) => msg.id !== enriched.id), enriched]
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+              .slice(-MESSAGE_LIMIT),
+          )
         },
       )
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages" },
         (payload) => {
-          setMessages((prev) => prev.filter((msg) => msg.id !== (payload.old as Message).id))
+          if (!active) return
+          const removedId = (payload.old as Message).id
+          setMessages((prev) => prev.filter((msg) => msg.id !== removedId))
         },
       )
-      .subscribe()
+
+    channel.subscribe()
 
     return () => {
+      active = false
       void supabase.removeChannel(channel)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase])
-
+  }, [supabase, currentUser])
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  async function loadMessages() {
+  async function primeChat() {
     const { data, error: fetchError } = await supabase
       .from("messages")
       .select("*, user:users(name, email)")
@@ -79,7 +80,45 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
       return
     }
 
-    setMessages(data as Message[])
+    const loaded = (data ?? []).map((msg) => {
+      if (msg.user) {
+        userCache.current.set(msg.user_id, msg.user)
+      }
+      return msg as Message
+    })
+
+    setMessages(loaded)
+  }
+
+  async function enrichMessage(message: Message): Promise<Message> {
+    if (message.user_id === currentUser.id) {
+      return {
+        ...message,
+        user: {
+          name: currentUser.name,
+          email: currentUser.email,
+        },
+      }
+    }
+
+    const cached = userCache.current.get(message.user_id)
+    if (cached) {
+      return { ...message, user: cached }
+    }
+
+    const { data } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", message.user_id)
+      .maybeSingle()
+
+    if (data) {
+      const meta = { name: data.name, email: data.email }
+      userCache.current.set(message.user_id, meta)
+      return { ...message, user: meta }
+    }
+
+    return message
   }
 
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
