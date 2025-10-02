@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Tony's Orders",
+  "description": "Place Friday Tony's orders directly from your browser.",
+  "version": "0.1.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tony's Orders"
+  },
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.supabase.co/*"
+  ]
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tony''s Orders</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main id="app">
+    <header class="app-header">
+      <h1>Tony''s Orders</h1>
+      <p class="tagline">Friday lunch in a click.</p>
+    </header>
+
+    <div id="status-message" class="status hidden"></div>
+
+    <section id="auth-section" class="card hidden">
+      <h2>Sign In</h2>
+      <form id="sign-in-form" autocomplete="off">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" id="email-input" required placeholder="you@company.com" />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" id="password-input" required />
+        </label>
+        <button type="submit" id="sign-in-button">Sign In</button>
+      </form>
+      <p class="hint">Use the same credentials as the web app.</p>
+    </section>
+
+    <section id="order-section" class="card hidden">
+      <div class="user-row">
+        <div>
+          <p class="user-name" id="user-name"></p>
+          <p class="user-email" id="user-email"></p>
+        </div>
+        <button id="sign-out-button" class="linkish" type="button">Sign out</button>
+      </div>
+
+      <div id="window-badge" class="window-badge"></div>
+
+      <form id="order-form" class="order-form">
+        <label class="field">
+          <span>Phone</span>
+          <input type="tel" id="phone-input" placeholder="Add a phone number" />
+        </label>
+
+        <label class="field">
+          <span>Menu Item</span>
+          <select id="item-select" required></select>
+        </label>
+
+        <label class="field">
+          <span>Variant</span>
+          <select id="variant-select" required></select>
+        </label>
+
+        <label class="field">
+          <span>Notes <small>(optional, 100 char max)</small></span>
+          <textarea id="notes-input" maxlength="100" rows="3" placeholder="No onions, extra sauce..." ></textarea>
+        </label>
+
+        <button type="submit" id="submit-order-button">Place Order</button>
+      </form>
+
+      <section class="summary">
+        <h3>Team Orders</h3>
+        <p id="orders-count" class="summary-count"></p>
+        <ul id="orders-list" class="orders-list"></ul>
+      </section>
+    </section>
+
+    <div id="loading" class="loading hidden">Loading…</div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="vendor/supabase.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
