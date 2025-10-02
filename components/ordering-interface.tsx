@@ -2,6 +2,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -177,15 +178,28 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     <div className="min-h-screen bg-background p-4">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Friday Tony's Orders</h1>
-            <p className="text-muted-foreground">
-              Welcome back, {user.name}
-              {user.role === "admin" && <Badge className="ml-2">Admin</Badge>}
-            </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4 sm:items-center">
+            <div className="relative h-12 w-12 overflow-hidden rounded-full ring-2 ring-[#1492e6]/30 shadow-md sm:h-16 sm:w-16">
+              <Image
+                src="/brand/logo-mark.png"
+                alt="Facilization Friday mark"
+                fill
+                sizes="(max-width: 640px) 48px, 64px"
+                priority
+                className="object-contain"
+              />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">Friday Tony's Orders</h1>
+              <p className="text-muted-foreground">
+                Welcome back, {user.name}
+                {user.role === "admin" && <Badge className="ml-2">Admin</Badge>}
+              </p>
+              <p className="text-xs uppercase tracking-[0.2em] text-primary/80">Facilization - Very Serious Work</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:self-end">
             <ThemeToggle />
             <Button variant="outline" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
@@ -439,3 +453,4 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     </div>
   )
 }
+
