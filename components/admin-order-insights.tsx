@@ -40,7 +40,7 @@ export function AdminOrderInsights({ orders }: AdminOrderInsightsProps) {
     const userMap = new Map<string, number>()
 
     orders.forEach((order) => {
-      const label = `${order.item} – ${order.variant}`
+      const label = `${order.item} - ${order.variant}`
       itemMap.set(label, (itemMap.get(label) ?? 0) + 1)
 
       const userLabel = order.user?.name || order.user_id
