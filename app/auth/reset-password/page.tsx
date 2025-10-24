@@ -42,53 +42,56 @@ export default function ResetPasswordPage() {
     setStatus(null)
     setError(null)
 
-    if (token) {
-      setMode("legacy")
-      setSessionReady(true)
-      setUserEmail(null)
-      return
-    }
+    const handleRecovery = async () => {
+      if (token) {
+        setMode("legacy")
+        setSessionReady(true)
+        setUserEmail(null)
+        return
+      }
 
-    if (code) {
-      setMode("supabase")
-      setSessionReady(false)
-      void (async () => {
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (exchangeError) {
-          console.error("Supabase recovery exchange failed:", exchangeError.message)
-          setError("This reset link is invalid or has expired. Request a new one below.")
-          setMode("invalid")
+      const hash = typeof window !== "undefined" ? window.location.hash : ""
+      const hasHashTokens = hash.includes("access_token") || hash.includes("refresh_token")
+
+      if (code || hasHashTokens || (tokenHash && (type === "recovery" || !type))) {
+        setMode("supabase")
+        setSessionReady(false)
+
+        const { data, error: sessionError } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+        if (!sessionError) {
+          setUserEmail(data?.session?.user?.email ?? data?.user?.email ?? null)
+          setSessionReady(true)
           return
         }
-        setUserEmail(data?.user?.email ?? null)
-        setSessionReady(true)
-      })()
-      return
-    }
 
-    if (tokenHash && (type === "recovery" || !type)) {
-      setMode("supabase")
-      setSessionReady(false)
-      void (async () => {
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          type: "recovery",
-          token_hash: tokenHash,
-        })
-        if (verifyError) {
-          console.error("Supabase recovery verification failed:", verifyError.message)
-          setError("This reset link is invalid or has expired. Request a new one below.")
-          setMode("invalid")
+        if (tokenHash && (type === "recovery" || !type)) {
+          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          })
+          if (verifyError) {
+            console.error("Supabase recovery verification failed:", verifyError.message)
+            setError("This reset link is invalid or has expired. Request a new one below.")
+            setMode("invalid")
+            return
+          }
+          setUserEmail(verifyData?.user?.email ?? null)
+          setSessionReady(true)
           return
         }
-        setUserEmail(data?.user?.email ?? null)
-        setSessionReady(true)
-      })()
-      return
+
+        console.error("Supabase recovery session error:", sessionError.message)
+        setError("This reset link is invalid or has expired. Request a new one below.")
+        setMode("invalid")
+        return
+      }
+
+      setMode("invalid")
+      setSessionReady(false)
     }
 
-    setMode("invalid")
-    setSessionReady(false)
-  }, [code, tokenHash, type, token, supabase])
+    void handleRecovery()
+  }, [supabase, token, code, tokenHash, type])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -160,7 +163,7 @@ export default function ResetPasswordPage() {
             {!showForm ? (
               <div className="space-y-4 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Looks like this link can&apos;t be used anymore. You can request another email with a fresh reset link.
+                  Looks like this link can't be used anymore. You can request another email with a fresh reset link.
                 </p>
                 <Button asChild variant="outline">
                   <Link href="/auth/forgot-password">Request new reset link</Link>
@@ -230,4 +233,3 @@ export default function ResetPasswordPage() {
     </div>
   )
 }
-
