@@ -38,8 +38,11 @@ export default function ResetPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
 
+  const processedRef = useRef(false)
+
   useEffect(() => {
     if (processedRef.current) return
+    processedRef.current = true
 
     setStatus(null)
     setError(null)
@@ -57,16 +60,15 @@ export default function ResetPasswordPage() {
         setSessionReady(false)
         setIsVerifying(true)
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        setIsVerifying(false)
         if (exchangeError) {
           console.error("Supabase recovery exchange failed:", exchangeError.message)
           setError("This reset link is invalid or has expired. Request a new one below.")
           setMode("invalid")
-          setSessionReady(false)
-        } else {
-          setUserEmail(data?.user?.email ?? data?.session?.user?.email ?? null)
-          setSessionReady(true)
+          return
         }
-        setIsVerifying(false)
+        setUserEmail(data?.user?.email ?? data?.session?.user?.email ?? null)
+        setSessionReady(true)
         return
       }
 
@@ -78,16 +80,15 @@ export default function ResetPasswordPage() {
           type: "recovery",
           token_hash: tokenHash,
         })
+        setIsVerifying(false)
         if (verifyError) {
           console.error("Supabase recovery verification failed:", verifyError.message)
           setError("This reset link is invalid or has expired. Request a new one below.")
           setMode("invalid")
-          setSessionReady(false)
-        } else {
-          setUserEmail(data?.user?.email ?? null)
-          setSessionReady(true)
+          return
         }
-        setIsVerifying(false)
+        setUserEmail(data?.user?.email ?? null)
+        setSessionReady(true)
         return
       }
 
@@ -95,7 +96,6 @@ export default function ResetPasswordPage() {
       setSessionReady(false)
     }
 
-    processedRef.current = true
     void verify()
   }, [supabase, token, code, tokenHash])
 
@@ -239,4 +239,3 @@ export default function ResetPasswordPage() {
     </div>
   )
 }
-
