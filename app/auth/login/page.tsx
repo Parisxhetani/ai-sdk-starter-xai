@@ -80,11 +80,9 @@ export default function LoginPage() {
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </div>
-              <div className="mt-4 text-center text-sm">
-                {"Don't have an account? "}
-                <Link href="/auth/register" className="underline underline-offset-4">
-                  Register
-                </Link>
+              <div className="mt-4 space-y-2 text-center text-sm">
+                <p>{"Forgot your password? "}<Link href="/auth/forgot-password" className="underline underline-offset-4">Reset it</Link></p>
+                <p>{"Don't have an account? "}<Link href="/auth/register" className="underline underline-offset-4">Register</Link></p>
               </div>
             </form>
           </CardContent>

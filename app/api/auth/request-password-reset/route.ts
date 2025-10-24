@@ -1,6 +1,22 @@
-﻿import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+
+function isEmailAllowed(email: string) {
+  const domainPart = email.split("@")[1] || ""
+  if (!domainPart) return false
+  const allowed = (process.env.RESET_ALLOWED_EMAIL_DOMAINS || "facilization.com,facilization.ai")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (allowed.length === 0) return true
+  return allowed.some((domain) => domainPart === domain || domainPart.endsWith(`.${domain}`))
+}
+
+function getRequestIp(request: NextRequest) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.ip || "unknown"
+}
 const SUCCESS_MESSAGE =
   "If an account with that email exists, a password reset link has been sent. Check your inbox in a moment."
 
@@ -21,6 +37,10 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase()
+    if (!isEmailAllowed(normalizedEmail)) {
+      return NextResponse.json({ success: true, message: SUCCESS_MESSAGE })
+    }
+    const requestIp = getRequestIp(request)
     const supabase = await createClient()
 
     const { data: user } = await supabase
@@ -52,6 +72,8 @@ export async function POST(request: NextRequest) {
         email: user.email,
         redirect_to: redirectTo,
         provider: "supabase",
+        ip: requestIp,
+        allowed_domains: process.env.RESET_ALLOWED_EMAIL_DOMAINS || "facilization.com,facilization.ai",
       },
     })
 

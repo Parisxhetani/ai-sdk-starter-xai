@@ -20,17 +20,32 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 - **Authentication**: Supabase Auth with Row Level Security
 - **Deployment**: Vercel
 
-## Environment Variables\r\n\r\nRequired environment variables:
+## Environment Variables
 
-\`\`\`env
+Required environment variables:
+
+```env
 # Supabase (automatically configured in v0)
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-# Development redirect URL
+# App URLs
+NEXT_PUBLIC_APP_URL=https://your-production-domain
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
-\`\`\`
+
+# Auth reset configuration
+RESET_ALLOWED_EMAIL_DOMAINS=facilization.com,facilization.ai
+```
+
+
+## Password Reset Setup
+
+1. In Supabase Dashboard > Authentication > Email Templates, customize the *Reset Password* template so it matches your branding.
+2. In Supabase Dashboard > Authentication > Redirect URLs, add https://your-production-domain/auth/reset-password and http://localhost:3000/auth/reset-password.
+3. (Optional) Configure SMTP credentials under Authentication > SMTP Settings for higher send limits and reliability.
+4. Ensure the SQL migrations in scripts/005_password_reset_tokens.sql and scripts/006_chat_messages.sql have been applied to your Supabase database.
+5. Deploy with the environment variables above so reset links point to the right domain.
 
 ## Setup Instructions
 
@@ -88,10 +103,10 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 
 The app is built with Next.js and can be run locally:
 
-\`\`\`bash
+```bash
 npm install
 npm run dev
-\`\`\`
+```
 
 Database migrations are handled through the SQL scripts in the `scripts/` folder.
 
