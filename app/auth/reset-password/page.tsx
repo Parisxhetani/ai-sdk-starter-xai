@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
     setStatus(null)
     setError(null)
 
-    const verify = async () => {
+    const verifyLink = async () => {
       if (token) {
         setMode("legacy")
         setSessionReady(true)
@@ -55,48 +55,54 @@ export default function ResetPasswordPage() {
         return
       }
 
-      if (code) {
-        setMode("supabase")
+      const hash = typeof window !== "undefined" ? window.location.hash : ""
+      const hasHashTokens = hash.includes("access_token") || hash.includes("refresh_token")
+      const hasSupabaseParams = Boolean(code || tokenHash || hasHashTokens)
+
+      if (!hasSupabaseParams) {
+        setMode("invalid")
         setSessionReady(false)
-        setIsVerifying(true)
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        setIsVerifying(false)
-        if (exchangeError) {
-          console.error("Supabase recovery exchange failed:", exchangeError.message)
-          setError("This reset link is invalid or has expired. Request a new one below.")
-          setMode("invalid")
-          return
-        }
-        setUserEmail(data?.user?.email ?? data?.session?.user?.email ?? null)
+        return
+      }
+
+      setIsVerifying(true)
+
+      const { data, error: sessionError } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+
+      if (!sessionError && (data?.session || data?.user)) {
+        setMode("supabase")
         setSessionReady(true)
+        setUserEmail(data?.session?.user?.email ?? data?.user?.email ?? null)
+        setIsVerifying(false)
         return
       }
 
       if (tokenHash) {
-        setMode("supabase")
-        setSessionReady(false)
-        setIsVerifying(true)
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
           type: "recovery",
           token_hash: tokenHash,
         })
-        setIsVerifying(false)
-        if (verifyError) {
-          console.error("Supabase recovery verification failed:", verifyError.message)
-          setError("This reset link is invalid or has expired. Request a new one below.")
-          setMode("invalid")
+
+        if (!verifyError) {
+          setMode("supabase")
+          setSessionReady(true)
+          setUserEmail(verifyData?.user?.email ?? null)
+          setIsVerifying(false)
           return
         }
-        setUserEmail(data?.user?.email ?? null)
-        setSessionReady(true)
-        return
+
+        console.error("Supabase recovery verification failed:", verifyError.message)
+      } else if (sessionError) {
+        console.error("Supabase recovery session error:", sessionError.message)
       }
 
+      setIsVerifying(false)
       setMode("invalid")
       setSessionReady(false)
+      setError("This reset link is invalid or has expired. Request a new one below.")
     }
 
-    void verify()
+    void verifyLink()
   }, [supabase, token, code, tokenHash])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
