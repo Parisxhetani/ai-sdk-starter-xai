@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+﻿import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
 
-    // Verify user is authenticated and admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -22,14 +21,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    // Fetch all users with their order counts
-    const { data: users } = await adminSupabase
+    const { data: users, error } = await adminSupabase
       .from("users")
-      .select(`
-        *,
-        orders(count)
-      `)
+      .select("id, name, email, phone, role, whitelisted, created_at, updated_at")
       .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Admin users query failed:", error.message)
+      return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
+    }
 
     return NextResponse.json({ users: users || [] })
   } catch (error) {
@@ -49,7 +49,6 @@ export async function PATCH(request: NextRequest) {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
 
-    // Verify user is authenticated and admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -64,20 +63,22 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    // Prevent admin from changing their own role
     if (userId === user.id && updates.role && updates.role !== userProfile.role) {
       return NextResponse.json({ error: "Cannot change your own role" }, { status: 400 })
     }
 
-    // Update user
-    const { data: updatedUser, error } = await adminSupabase.from("users").update(updates).eq("id", userId).select().single()
+    const { data: updatedUser, error } = await adminSupabase
+      .from("users")
+      .update(updates)
+      .eq("id", userId)
+      .select("id, name, email, phone, role, whitelisted, created_at, updated_at")
+      .single()
 
     if (error) {
       console.error("Error updating user:", error)
       return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
     }
 
-    // Log the event
     await supabase.from("events").insert({
       type: "admin_user_updated",
       user_id: user.id,

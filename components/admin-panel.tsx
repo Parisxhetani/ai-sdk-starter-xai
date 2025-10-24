@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,12 +28,34 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const fridayDate = formatFridayDate(getCurrentFriday())
 
   useEffect(() => {
     if (user.role === "admin") {
       fetchAdminData()
+    }
+  }, [user.role])
+
+  useEffect(() => {
+    if (user.role !== "admin") return
+
+    const channel = supabase
+      .channel("orders-admin-feed")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => fetchAdminData())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, () => fetchAdminData())
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, () => fetchAdminData())
+      .subscribe()
+
+    const usersChannel = supabase
+      .channel("users-admin-feed")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "users" }, () => fetchAdminData())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, () => fetchAdminData())
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+      void supabase.removeChannel(usersChannel)
     }
   }, [user.role])
 
@@ -432,4 +454,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
+
+
+
+
 
