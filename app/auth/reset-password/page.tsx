@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
@@ -26,6 +26,7 @@ export default function ResetPasswordPage() {
 
   const token = searchParams.get("token")
   const code = searchParams.get("code")
+  const tokenHash = searchParams.get("token_hash")
   const type = searchParams.get("type")
 
   const [mode, setMode] = useState<ResetMode>("invalid")
@@ -48,7 +49,7 @@ export default function ResetPasswordPage() {
       return
     }
 
-    if (code && type === "recovery") {
+    if (code) {
       setMode("supabase")
       setSessionReady(false)
       void (async () => {
@@ -65,9 +66,29 @@ export default function ResetPasswordPage() {
       return
     }
 
+    if (tokenHash && (type === "recovery" || !type)) {
+      setMode("supabase")
+      setSessionReady(false)
+      void (async () => {
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: "recovery",
+          token_hash: tokenHash,
+        })
+        if (verifyError) {
+          console.error("Supabase recovery verification failed:", verifyError.message)
+          setError("This reset link is invalid or has expired. Request a new one below.")
+          setMode("invalid")
+          return
+        }
+        setUserEmail(data?.user?.email ?? null)
+        setSessionReady(true)
+      })()
+      return
+    }
+
     setMode("invalid")
     setSessionReady(false)
-  }, [code, supabase, token, type])
+  }, [code, tokenHash, type, token, supabase])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -209,3 +230,4 @@ export default function ResetPasswordPage() {
     </div>
   )
 }
+
