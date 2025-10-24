@@ -27,7 +27,6 @@ export default function ResetPasswordPage() {
   const token = searchParams.get("token")
   const code = searchParams.get("code")
   const tokenHash = searchParams.get("token_hash")
-  const type = searchParams.get("type")
 
   const [mode, setMode] = useState<ResetMode>("invalid")
   const [sessionReady, setSessionReady] = useState(false)
@@ -37,12 +36,13 @@ export default function ResetPasswordPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
 
   useEffect(() => {
     setStatus(null)
     setError(null)
 
-    const handleRecovery = async () => {
+    const verify = async () => {
       if (token) {
         setMode("legacy")
         setSessionReady(true)
@@ -50,39 +50,42 @@ export default function ResetPasswordPage() {
         return
       }
 
-      const hash = typeof window !== "undefined" ? window.location.hash : ""
-      const hasHashTokens = hash.includes("access_token") || hash.includes("refresh_token")
-
-      if (code || hasHashTokens || (tokenHash && (type === "recovery" || !type))) {
+      if (code) {
         setMode("supabase")
         setSessionReady(false)
-
-        const { data, error: sessionError } = await supabase.auth.getSessionFromUrl({ storeSession: true })
-        if (!sessionError) {
-          setUserEmail(data?.session?.user?.email ?? data?.user?.email ?? null)
+        setIsVerifying(true)
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeError) {
+          console.error("Supabase recovery exchange failed:", exchangeError.message)
+          setError("This reset link is invalid or has expired. Request a new one below.")
+          setMode("invalid")
+          setSessionReady(false)
+        } else {
+          setUserEmail(data?.user?.email ?? data?.session?.user?.email ?? null)
           setSessionReady(true)
-          return
         }
+        setIsVerifying(false)
+        return
+      }
 
-        if (tokenHash && (type === "recovery" || !type)) {
-          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-            type: "recovery",
-            token_hash: tokenHash,
-          })
-          if (verifyError) {
-            console.error("Supabase recovery verification failed:", verifyError.message)
-            setError("This reset link is invalid or has expired. Request a new one below.")
-            setMode("invalid")
-            return
-          }
-          setUserEmail(verifyData?.user?.email ?? null)
+      if (tokenHash) {
+        setMode("supabase")
+        setSessionReady(false)
+        setIsVerifying(true)
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: "recovery",
+          token_hash: tokenHash,
+        })
+        if (verifyError) {
+          console.error("Supabase recovery verification failed:", verifyError.message)
+          setError("This reset link is invalid or has expired. Request a new one below.")
+          setMode("invalid")
+          setSessionReady(false)
+        } else {
+          setUserEmail(data?.user?.email ?? null)
           setSessionReady(true)
-          return
         }
-
-        console.error("Supabase recovery session error:", sessionError.message)
-        setError("This reset link is invalid or has expired. Request a new one below.")
-        setMode("invalid")
+        setIsVerifying(false)
         return
       }
 
@@ -90,8 +93,8 @@ export default function ResetPasswordPage() {
       setSessionReady(false)
     }
 
-    void handleRecovery()
-  }, [supabase, token, code, tokenHash, type])
+    void verify()
+  }, [supabase, token, code, tokenHash])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -142,7 +145,7 @@ export default function ResetPasswordPage() {
   }
 
   const showForm = mode !== "invalid"
-  const disableInputs = isSubmitting || (mode === "supabase" && !sessionReady)
+  const disableInputs = isSubmitting || isVerifying || (mode === "supabase" && !sessionReady)
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center p-6">
@@ -171,7 +174,7 @@ export default function ResetPasswordPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === "supabase" && !sessionReady && !error && (
+                {mode === "supabase" && isVerifying && !error && (
                   <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground" role="status">
                     Verifying your reset link...
                   </p>
