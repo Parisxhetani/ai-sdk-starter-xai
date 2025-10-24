@@ -61,40 +61,16 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   const fetchAdminData = async () => {
     try {
-      // Fetch orders with user details
-      const { data: ordersData } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          user:users(name, email, phone)
-        `)
-        .eq("friday_date", fridayDate)
-        .order("created_at")
-
-      // Fetch recent events
-      const { data: eventsData } = await supabase
-        .from("events")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50)
-
-      // Fetch menu items
-      const { data: menuData } = await supabase.from("menu_items").select("*").order("item, variant")
-
-      // Fetch all users via admin API (service role)
-      const usersResponse = await fetch("/api/admin/users", { credentials: "include", cache: "no-store" })
-      if (!usersResponse.ok) {
-        throw new Error("Failed to load users")
+      const response = await fetch(`/api/admin/orders?fridayDate=${fridayDate}`, { cache: "no-store", credentials: "include" })
+      if (!response.ok) {
+        throw new Error("Failed to load admin data")
       }
-      const usersJson = await usersResponse.json()
-      const usersData = ((usersJson?.users as any[]) ?? []).map((entry) => {
-        const { orders: _orders, ...user } = entry
-        return user as User
-      })
-
-      // Check if orders are locked
-      const locked = ordersData?.some((order) => order.locked) || false
-
+      const data = await response.json()
+      setOrders(data.orders || [])
+      setEvents(data.events || [])
+      setMenuItems(data.menuItems || [])
+      setAllUsers(data.users || [])
+      setIsLocked((data.orders || []).some((order: Order) => order.locked))
     } catch (error) {
       console.error("Error fetching admin data:", error)
     }
@@ -454,6 +430,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
 
 
 

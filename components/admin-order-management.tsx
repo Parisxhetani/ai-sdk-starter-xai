@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -40,7 +40,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const fridayDate = formatFridayDate(getCurrentFriday())
 
   useEffect(() => {
@@ -438,3 +438,4 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   )
 })
 AdminOrderManagement.displayName = "AdminOrderManagement"
+
