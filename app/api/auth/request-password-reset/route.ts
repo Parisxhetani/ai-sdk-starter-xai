@@ -4,10 +4,17 @@ import { createClient } from "@/lib/supabase/server"
 const SUCCESS_MESSAGE =
   "If an account with that email exists, a password reset link has been sent. Check your inbox in a moment."
 
-function getRedirectBase() {
+const normalizeBase = (value?: string | null) => {
+  if (!value) return undefined
+  return value.endsWith('/') ? value.slice(0, -1) : value
+}
+
+function getRedirectBase(request: NextRequest) {
   return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+    normalizeBase(process.env.NEXT_PUBLIC_APP_URL) ??
+    normalizeBase(request.headers.get("origin")) ??
+    normalizeBase(`${request.nextUrl.protocol}//${request.nextUrl.host}`) ??
+    normalizeBase(process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL) ??
     "http://localhost:3000"
   )
 }
@@ -23,7 +30,7 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = String(email).trim().toLowerCase()
     const supabase = await createClient()
 
-    const redirectTo = `${getRedirectBase()}/auth/reset-password`
+    const redirectTo = `${getRedirectBase(request)}/auth/reset-password`
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo,
