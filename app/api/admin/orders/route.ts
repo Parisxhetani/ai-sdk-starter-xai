@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+﻿import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -24,23 +24,21 @@ async function requireAdmin(request: NextRequest) {
     return { errorResponse: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
 
-  const { data: profile, error } = await admin
-    .from("users")
-    .select("id, role")
-    .eq("id", user.id)
-    .maybeSingle()
+  const { data: profile, error } = await admin.from("users").select("id, role").eq("id", user.id).maybeSingle()
 
   if (error || profile?.role !== "admin") {
     return { errorResponse: NextResponse.json({ error: "Admin access required" }, { status: 403 }) }
   }
 
-  return { supabase, admin, userId: user.id }
+  return { admin, userId: user.id }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const \{ admin, errorResponse \} = await requireAdmin(request)
-    if (errorResponse) return errorResponse
+    const result = await requireAdmin(request)
+    if ("errorResponse" in result) return result.errorResponse
+
+    const { admin } = result
 
     const url = new URL(request.url)
     const fridayDate = url.searchParams.get("fridayDate") || getCurrentFridayDateString()
@@ -78,11 +76,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { admin, errorResponse } = await requireAdmin(request)
-    if (errorResponse) return errorResponse
+    const result = await requireAdmin(request)
+    if ("errorResponse" in result) return result.errorResponse
 
-    const body = await request.json()
-    const { user_id, item, variant, notes, friday_date } = body ?? {}
+    const { admin } = result
+
+    const { user_id, item, variant, notes, friday_date } = await request.json()
 
     if (!user_id || !item || !variant) {
       return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
@@ -116,11 +115,12 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { admin, errorResponse } = await requireAdmin(request)
-    if (errorResponse) return errorResponse
+    const result = await requireAdmin(request)
+    if ("errorResponse" in result) return result.errorResponse
 
-    const body = await request.json()
-    const { id, updates } = body ?? {}
+    const { admin } = result
+
+    const { id, updates } = await request.json()
 
     if (!id || !updates) {
       return NextResponse.json({ error: "id and updates are required" }, { status: 400 })
@@ -147,8 +147,10 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { admin, errorResponse } = await requireAdmin(request)
-    if (errorResponse) return errorResponse
+    const result = await requireAdmin(request)
+    if ("errorResponse" in result) return result.errorResponse
+
+    const { admin } = result
 
     const url = new URL(request.url)
     const id = url.searchParams.get("id")
