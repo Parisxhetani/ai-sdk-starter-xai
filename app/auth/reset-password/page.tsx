@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
@@ -17,96 +17,30 @@ interface ApiResetResponse {
   error?: string
 }
 
-type ResetMode = "supabase" | "legacy" | "invalid"
+type ResetMode = "legacy" | "invalid"
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  useMemo(() => createClient(), [])
 
   const token = searchParams.get("token")
-  const code = searchParams.get("code")
-  const tokenHash = searchParams.get("token_hash")
 
-  const [mode, setMode] = useState<ResetMode>("invalid")
-  const [sessionReady, setSessionReady] = useState(false)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const mode: ResetMode = token ? "legacy" : "invalid"
+
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(false)
-
-  const processedRef = useRef(false)
-
-  useEffect(() => {
-    if (processedRef.current) return
-    processedRef.current = true
-
-    setStatus(null)
-    setError(null)
-
-    const verifyLink = async () => {
-      if (token) {
-        setMode("legacy")
-        setSessionReady(true)
-        setUserEmail(null)
-        return
-      }
-
-      const hash = typeof window !== "undefined" ? window.location.hash : ""
-      const hasHashTokens = hash.includes("access_token") || hash.includes("refresh_token")
-      const hasSupabaseParams = Boolean(code || tokenHash || hasHashTokens)
-
-      if (!hasSupabaseParams) {
-        setMode("invalid")
-        setSessionReady(false)
-        return
-      }
-
-      setIsVerifying(true)
-
-      const { data, error: sessionError } = await supabase.auth.getSessionFromUrl({ storeSession: true })
-
-      if (!sessionError && (data?.session || data?.user)) {
-        setMode("supabase")
-        setSessionReady(true)
-        setUserEmail(data?.session?.user?.email ?? data?.user?.email ?? null)
-        setIsVerifying(false)
-        return
-      }
-
-      if (tokenHash) {
-        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-          type: "recovery",
-          token_hash: tokenHash,
-        })
-
-        if (!verifyError) {
-          setMode("supabase")
-          setSessionReady(true)
-          setUserEmail(verifyData?.user?.email ?? null)
-          setIsVerifying(false)
-          return
-        }
-
-        console.error("Supabase recovery verification failed:", verifyError.message)
-      } else if (sessionError) {
-        console.error("Supabase recovery session error:", sessionError.message)
-      }
-
-      setIsVerifying(false)
-      setMode("invalid")
-      setSessionReady(false)
-      setError("This reset link is invalid or has expired. Request a new one below.")
-    }
-
-    void verifyLink()
-  }, [supabase, token, code, tokenHash])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!token) {
+      setError("Reset link is invalid. Request a new one.")
+      return
+    }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters long.")
@@ -123,23 +57,14 @@ export default function ResetPasswordPage() {
     setStatus(null)
 
     try {
-      if (mode === "legacy" && token) {
-        const response = await fetch("/api/auth/reset-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, password }),
-        })
-        const data = (await response.json()) as ApiResetResponse
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to reset password")
-        }
-      } else if (mode === "supabase" && sessionReady) {
-        const { error: updateError } = await supabase.auth.updateUser({ password })
-        if (updateError) {
-          throw new Error(updateError.message)
-        }
-      } else {
-        throw new Error("Reset link is invalid or has expired. Request a new one below.")
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      })
+      const data = (await response.json()) as ApiResetResponse
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset password")
       }
 
       setStatus("Password updated! You can now sign in with your new password.")
@@ -153,8 +78,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  const showForm = mode !== "invalid"
-  const disableInputs = isSubmitting || isVerifying || (mode === "supabase" && !sessionReady)
+  const showForm = mode === "legacy"
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center p-6">
@@ -166,9 +90,9 @@ export default function ResetPasswordPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Reset your password</CardTitle>
             <CardDescription>
-              {mode === "invalid"
-                ? "The reset link is invalid or has expired. Request a new one below."
-                : "Choose a new password you won't forget this time."}
+              {showForm
+                ? "Choose a new password you won't forget this time."
+                : "The reset link is invalid or has expired. Request a new one below."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -183,16 +107,6 @@ export default function ResetPasswordPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === "supabase" && isVerifying && !error && (
-                  <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground" role="status">
-                    Verifying your reset link...
-                  </p>
-                )}
-                {userEmail && (
-                  <p className="rounded-md bg-primary/5 p-3 text-xs text-primary" role="note">
-                    Resetting password for <strong>{userEmail}</strong>
-                  </p>
-                )}
                 <div className="grid gap-2">
                   <Label htmlFor="password">New password</Label>
                   <Input
@@ -203,7 +117,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
-                    disabled={disableInputs}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -216,7 +130,7 @@ export default function ResetPasswordPage() {
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     autoComplete="new-password"
-                    disabled={disableInputs}
+                    disabled={isSubmitting}
                   />
                 </div>
                 {status && (
@@ -229,7 +143,7 @@ export default function ResetPasswordPage() {
                     {error}
                   </p>
                 )}
-                <Button type="submit" className="w-full" disabled={disableInputs}>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Updating password..." : "Update password"}
                 </Button>
               </form>
