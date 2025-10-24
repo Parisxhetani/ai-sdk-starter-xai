@@ -33,6 +33,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # App URLs
 NEXT_PUBLIC_APP_URL=https://your-production-domain
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
+
+# Password reset link lifetime (minutes)
+RESET_LINK_DURATION_MINUTES=1440
 ```
 
 

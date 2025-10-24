@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 const SUCCESS_MESSAGE =
   "If an account with that email exists, a password reset link has been sent. Check your inbox in a moment."
+const DURATION_MINUTES = parseInt(process.env.RESET_LINK_DURATION_MINUTES || "1440", 10)
 
 const normalizeBase = (value?: string | null) => {
   if (!value) return undefined
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo,
+      expiresIn: Math.max(DURATION_MINUTES, 1) * 60,
     })
 
     if (resetError) {
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
           email: normalizedEmail,
           redirect_to: redirectTo,
           provider: "supabase",
+          expires_in_minutes: Math.max(DURATION_MINUTES, 1),
         },
       })
     } catch (eventError) {
