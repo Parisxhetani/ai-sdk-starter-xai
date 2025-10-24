@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
             <CardDescription>
               {mode === "invalid"
                 ? "The reset link is invalid or has expired. Request a new one below."
-                : "Choose a new password you won’t forget this time."}
+                : "Choose a new password you won't forget this time."}
             </CardDescription>
           </CardHeader>
           <CardContent>
