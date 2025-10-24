@@ -1,23 +1,45 @@
 -- 007_admin_manage_orders.sql
--- Allow admins to manage all orders while keeping existing user policies
+-- Grants admin users full control over the orders table while keeping existing member access
 
-create policy if not exists "Admins can insert any orders" on public.orders
-  for insert
-  with check (
+-- Insert permissions
+DROP POLICY IF EXISTS "Admins can insert any orders" ON public.orders;
+CREATE POLICY "Admins can insert any orders" ON public.orders
+  FOR INSERT
+  WITH CHECK (
     auth.uid() = user_id
-    or exists (select 1 from public.users where id = auth.uid() and role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
   );
 
-create policy if not exists "Admins can update any orders" on public.orders
-  for update
-  using (
+-- Update permissions
+DROP POLICY IF EXISTS "Admins can update any orders" ON public.orders;
+CREATE POLICY "Admins can update any orders" ON public.orders
+  FOR UPDATE
+  USING (
     auth.uid() = user_id
-    or exists (select 1 from public.users where id = auth.uid() and role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  )
+  WITH CHECK (
+    auth.uid() = user_id
+    OR EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
   );
 
-create policy if not exists "Admins can delete any orders" on public.orders
-  for delete
-  using (
+-- Delete permissions
+DROP POLICY IF EXISTS "Admins can delete any orders" ON public.orders;
+CREATE POLICY "Admins can delete any orders" ON public.orders
+  FOR DELETE
+  USING (
     auth.uid() = user_id
-    or exists (select 1 from public.users where id = auth.uid() and role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
   );

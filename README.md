@@ -52,8 +52,7 @@ RESET_LINK_DURATION_MINUTES=1440
 1. **Database Setup**: Run the SQL scripts in the `scripts/` folder:
    - `001_create_tables.sql` - Creates all required tables with RLS policies
    - `002_seed_data.sql` - Seeds menu items and default settings
-   - `003_user_profile_trigger.sql` - Sets up user registration trigger
-   - `007_admin_manage_orders.sql` - Grants admins full order management access
+   - `003_user_profile_trigger.sql` - Sets up user registration trigger\n   - `007_admin_manage_orders.sql` - Grants admins full insert/update/delete access on orders
 
 2. **Whitelist Configuration**: Update the whitelisted emails in the settings table or modify `002_seed_data.sql` before running.
 
