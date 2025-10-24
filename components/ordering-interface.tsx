@@ -175,7 +175,9 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const isOrdersLocked = currentOrder?.locked || false
   const canOrder = isWindowOpen && !isOrdersLocked
 
-  return (\r\n    <>\r\n      <div className="min-h-screen bg-background p-4">
+  return (
+    <>
+      <div className="min-h-screen bg-background p-4 pb-36">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -438,7 +440,6 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                 </div>
               </CardContent>
             </Card>
-            <ChatPanel currentUser={user} />
           </div>
         </div>
 
@@ -452,8 +453,17 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           </>
         )}
       </div>
-          <div className="fixed bottom-6 right-6 z-50 w-[min(380px,90vw)]">\r\n        <ChatPanel currentUser={user} />\r\n      </div>\r\n    </>\r\n  )
+          <div className="fixed bottom-6 right-6 z-50 w-[min(380px,90vw)]">
+
+      </div>
+    </>
+  )
 }
+
+
+
+
+
 
 
 
