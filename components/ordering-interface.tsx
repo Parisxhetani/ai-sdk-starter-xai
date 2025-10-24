@@ -1,4 +1,4 @@
-// OrderingInterface.tsx
+﻿// OrderingInterface.tsx
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
@@ -268,12 +268,12 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     }}
                     disabled={!canOrder}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-background text-foreground border-border">
                       <SelectValue placeholder="Select an item" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background text-foreground border border-border">
                       {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
-                        <SelectItem key={item} value={item}>
+                        <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item} value={item}>
                           {item}
                         </SelectItem>
                       ))}
@@ -288,12 +288,12 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     onValueChange={setSelectedVariant}
                     disabled={!canOrder || !selectedItem}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-background text-foreground border-border">
                       <SelectValue placeholder="Select a variant" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background text-foreground border border-border">
                       {availableVariants.map((item) => (
-                        <SelectItem key={item.id} value={item.variant}>
+                        <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item.id} value={item.variant}>
                           {item.variant}
                         </SelectItem>
                       ))}
@@ -446,7 +446,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         {/* Admin Tools */}
         {user.role === "admin" && (
           <>
-            <AdminOrderInsights orders={orders} />
+            {user.role !== "admin" && <AdminOrderInsights orders={orders} />}
             <div>
               <AdminPanel user={user} />
             </div>
@@ -456,6 +456,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     </div>
   )
 }
+
+
 
 
 
