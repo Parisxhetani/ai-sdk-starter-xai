@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
@@ -39,6 +39,8 @@ export default function ResetPasswordPage() {
   const [isVerifying, setIsVerifying] = useState(false)
 
   useEffect(() => {
+    if (processedRef.current) return
+
     setStatus(null)
     setError(null)
 
@@ -93,6 +95,7 @@ export default function ResetPasswordPage() {
       setSessionReady(false)
     }
 
+    processedRef.current = true
     void verify()
   }, [supabase, token, code, tokenHash])
 
@@ -236,3 +239,4 @@ export default function ResetPasswordPage() {
     </div>
   )
 }
+
