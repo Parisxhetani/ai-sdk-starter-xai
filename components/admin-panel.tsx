@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
+import { AdminOrderInsights } from "@/components/admin-order-insights"
 import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
@@ -246,16 +247,17 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   const toggleMenuItem = async (itemId: string, currentActive: boolean) => {
     try {
-      const { error } = await supabase.from("menu_items").update({ active: !currentActive }).eq("id", itemId)
-
-      if (error) throw error
-
-      // Log the action
-      await supabase.from("events").insert({
-        type: "menu_item_toggled",
-        user_id: user.id,
-        payload: { item_id: itemId, active: !currentActive },
+      const response = await fetch("/api/admin/menu", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: itemId, active: !currentActive }),
       })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to toggle menu item")
+      }
 
       await fetchAdminData()
     } catch (error) {
@@ -275,7 +277,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
     <div className="space-y-6">
       <TimeframeSettings user={user} />
 
-      <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />
+      <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />\r\n\r\n      <AdminOrderInsights orders={orders} users={allUsers} />
 
       <AdminUserManagement
         users={allUsers}
@@ -388,6 +390,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
                           {menuItem.variant}
                         </span>
                         <Switch
+                          className="data-[state=checked]:bg-primary"
                           checked={menuItem.active}
                           onCheckedChange={() => toggleMenuItem(menuItem.id, menuItem.active)}
                         />
@@ -430,6 +433,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
 
 
 

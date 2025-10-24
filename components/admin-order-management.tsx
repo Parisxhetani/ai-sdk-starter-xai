@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
+import { useState, useEffect, useImperativeHandle, forwardRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { User, MenuItem, Order } from "@/lib/types"
 import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
@@ -41,6 +41,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [notes, setNotes] = useState("")
 
   const fridayDate = formatFridayDate(getCurrentFriday())
+  const activeMenuItems = useMemo(() => menuItems.filter((item) => item.active), [menuItems])
 
   useEffect(() => {
     if (user.role === "admin") {
@@ -59,10 +60,10 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       }
       const data = await response.json()
       setAllUsers(data.users || [])
-      setMenuItems((data.menuItems || []).filter((item: MenuItem) => item.active))
+      setMenuItems((data.menuItems || []) as MenuItem[])
       setOrders(data.orders || [])
     } catch (error) {
-      console.error("Error fetching data:", error)
+      console.error("Error fetching admin order data:", error)
       setError("Failed to fetch data")
     }
   }
@@ -127,7 +128,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
     }
 
     try {
-      const body = {
+      const payload = {
         user_id: selectedUserId,
         item: selectedItem,
         variant: selectedVariant,
@@ -139,7 +140,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
         method: editingOrder ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(editingOrder ? { id: editingOrder.id, updates: body } : body),
+        body: JSON.stringify(editingOrder ? { id: editingOrder.id, updates: payload } : payload),
       })
 
       const data = await response.json()
@@ -182,7 +183,12 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
     }
   }
 
-  const availableVariants = menuItems.filter((item) => item.item === selectedItem)
+  const availableVariants = useMemo(() => menuItems.filter((item) => item.item === selectedItem), [menuItems, selectedItem])
+
+  const usersWithoutOrders = useMemo(
+    () => allUsers.filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id)),
+    [allUsers, orders],
+  )
 
   return (
     <Card className="bg-background/70">
@@ -199,22 +205,15 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       <CardContent className="space-y-4">
         <div className="space-y-4">
           <div>
-            <h4 className="mb-2 font-semibold">Users without orders ({allUsers.filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id)).length})</h4>
+            <h4 className="mb-2 font-semibold">Users without orders ({usersWithoutOrders.length})</h4>
             <div className="flex flex-wrap gap-2">
-              {allUsers
-                .filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id))
-                .map((user) => (
-                  <Button
-                    key={user.id}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openCreateOrderForUser(user.id)}
-                  >
-                    <UserPlus className="mr-2 h-3 w-3" />
-                    {user.name}
-                  </Button>
-                ))}
-              {allUsers.filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id)).length === 0 && (
+              {usersWithoutOrders.map((user) => (
+                <Button key={user.id} variant="outline" size="sm" onClick={() => openCreateOrderForUser(user.id)}>
+                  <UserPlus className="mr-2 h-3 w-3" />
+                  {user.name}
+                </Button>
+              ))}
+              {usersWithoutOrders.length === 0 && (
                 <p className="text-sm text-muted-foreground">Everyone is covered!</p>
               )}
             </div>
@@ -227,7 +226,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                 <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{order.user?.name}</p>
+                      <p className="font-medium">{order.user?.name || order.user?.email}</p>
                       {order.locked && (
                         <Badge variant="destructive" className="text-xs">
                           Locked
@@ -257,17 +256,18 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{editingOrder ? "Edit Order" : "Add Order"}</DialogTitle>
+                <DialogDescription>Fill out the details and save to update this week's order.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="user-select">User *</Label>
                   <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!!editingOrder}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-background text-foreground border-border">
                       <SelectValue placeholder="Select a user" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background text-foreground border border-border">
                       {allUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
+                        <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={user.id} value={user.id}>
                           {user.name} ({user.email})
                         </SelectItem>
                       ))}
@@ -284,12 +284,12 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                       setSelectedVariant("")
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-background text-foreground border-border">
                       <SelectValue placeholder="Select an item" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
-                        <SelectItem key={item} value={item}>
+                    <SelectContent className="bg-background text-foreground border border-border">
+                      {Array.from(new Set(activeMenuItems.map((item) => item.item))).map((item) => (
+                        <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item} value={item}>
                           {item}
                         </SelectItem>
                       ))}
@@ -300,12 +300,12 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                 <div className="grid gap-2">
                   <Label htmlFor="variant-select">Variant *</Label>
                   <Select value={selectedVariant} onValueChange={setSelectedVariant} disabled={!selectedItem}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-background text-foreground border-border">
                       <SelectValue placeholder="Select a variant" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background text-foreground border border-border">
                       {availableVariants.map((item) => (
-                        <SelectItem key={item.id} value={item.variant}>
+                        <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item.id} value={item.variant}>
                           {item.variant}
                         </SelectItem>
                       ))}
@@ -356,3 +356,4 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
 })
 
 AdminOrderManagement.displayName = "AdminOrderManagement"
+
