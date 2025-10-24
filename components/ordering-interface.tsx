@@ -1,4 +1,4 @@
-﻿// OrderingInterface.tsx
+// OrderingInterface.tsx
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
@@ -443,35 +443,19 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           </div>
         </div>
 
-        {/* Admin Tools */}
+        {user.role !== "admin" && <AdminOrderInsights orders={orders} />}
+
         {user.role === "admin" && (
-          <>
-            {user.role !== "admin" && {user.role !== "admin" && <AdminOrderInsights orders={orders} />}}
-            <div>
-              <AdminPanel user={user} />
-            </div>
-          </>
+          <div>
+            <AdminPanel user={user} />
+          </div>
         )}
       </div>
-          <div className="fixed bottom-6 right-6 z-50 w-[min(380px,90vw)]">
+    </div>
 
-      </div>
-    </>
-  )
+    <div className="fixed bottom-6 right-6 z-50 w-[min(380px,90vw)]">
+      <ChatPanel currentUser={user} />
+    </div>
+  </>
+  );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
