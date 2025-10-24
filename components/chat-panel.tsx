@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { MessageCircle, X } from "lucide-react"
 
 interface ChatPanelProps {
   currentUser: User
+  defaultOpen?: boolean
 }
 
 const MAX_MESSAGE_LENGTH = 1000
@@ -18,19 +20,27 @@ const MESSAGE_LIMIT = 200
 
 type UserMeta = { name: string; email: string }
 
-export function ChatPanel({ currentUser }: ChatPanelProps) {
+export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) {
   const supabase = useMemo(() => createClient(), [])
   const [messages, setMessages] = useState<Message[]>([])
   const [message, setMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(defaultOpen)
   const listRef = useRef<HTMLDivElement | null>(null)
   const userCache = useRef<Map<string, UserMeta>>(new Map())
 
   useEffect(() => {
+    userCache.current.set(currentUser.id, {
+      name: currentUser.name,
+      email: currentUser.email,
+    })
+  }, [currentUser])
+
+  useEffect(() => {
     let active = true
 
-    const subscribe = async () => {
+    const prime = async () => {
       await primeChat()
 
       const channel = supabase
@@ -65,12 +75,12 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
       }
     }
 
-    const cleanupPromise = subscribe()
+    void prime()
 
     return () => {
-      void cleanupPromise
+      active = false
     }
-  }, [supabase, currentUser])
+  }, [supabase])
 
   useEffect(() => {
     if (!listRef.current) return
@@ -117,7 +127,11 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
       return { ...message, user: cached }
     }
 
-    const { data } = await supabase.from("users").select("name, email").eq("id", message.user_id).maybeSingle()
+    const { data } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", message.user_id)
+      .maybeSingle()
 
     if (data) {
       const meta = { name: data.name, email: data.email }
@@ -137,7 +151,7 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
     }
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      setError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters`)
+      setError(Messages are limited to  characters)
       return
     }
 
@@ -162,16 +176,28 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
   const trimmedLength = message.trim().length
   const isSubmitDisabled = isSending || trimmedLength === 0
 
+  if (!isOpen) {
+    return (
+      <Button onClick={() => setIsOpen(true)} className="shadow-lg" size="sm">
+        <MessageCircle className="mr-2 h-4 w-4" />
+        Team Chat
+      </Button>
+    )
+  }
+
   return (
-    <Card className="flex h-full max-h-[70vh] w-full flex-col border bg-background/95 shadow-lg backdrop-blur">
+    <Card className="flex h-full max-h-[70vh] w-full flex-col border bg-background/95 shadow-xl">
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-xl">
             Team Chat
             <Badge variant="outline" className="border-primary/40 bg-primary/5 text-xs font-normal text-primary">
               Live
             </Badge>
           </CardTitle>
+          <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
         <p className="text-sm text-muted-foreground">
           Everyone online can see these messages. Keep it Friday-friendly!
@@ -187,16 +213,18 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
           {messages.length === 0 && <p className="text-sm text-muted-foreground">Say hello! No messages yet.</p>}
           {messages.map((msg) => {
             const isSelf = msg.user_id === currentUser.id
+            const cachedName = userCache.current.get(msg.user_id)?.name
             const displayName = isSelf
               ? "You"
-              : msg.user?.name || msg.user?.email || userCache.current.get(msg.user_id)?.name || "Teammate"
+              : msg.user?.name || cachedName || msg.user?.email || userCache.current.get(msg.user_id)?.email || "Teammate"
             const timestamp = new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })
 
             return (
-              <div key={msg.id} className={cn("flex", isSelf ? "justify-end" : "justify-start")}>
+              <div key={msg.id} className={cn("flex", isSelf ? "justify-end" : "justify-start")}
+              >
                 <div
                   className={cn(
                     "max-w-[80%] rounded-xl px-3 py-2 text-sm shadow-sm",
