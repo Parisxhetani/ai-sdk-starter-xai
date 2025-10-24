@@ -33,9 +33,6 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # App URLs
 NEXT_PUBLIC_APP_URL=https://your-production-domain
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
-
-# Auth reset configuration
-RESET_ALLOWED_EMAIL_DOMAINS=facilization.com,facilization.ai
 ```
 
 
