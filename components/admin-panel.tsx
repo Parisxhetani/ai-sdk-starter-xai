@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -432,3 +432,4 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
