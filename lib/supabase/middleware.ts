@@ -1,7 +1,23 @@
-import { createServerClient } from "@supabase/ssr"
+﻿import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Allow unauthenticated access to password-reset endpoints and public APIs
+  const publicPaths = [
+    '/api/auth/request-password-reset',
+    '/api/auth/reset-password',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ]
+  if (publicPaths.some((path) => pathname.startsWith(path))) {
+    return NextResponse.next({ request })
+  }
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
