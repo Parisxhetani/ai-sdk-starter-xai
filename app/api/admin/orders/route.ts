@@ -2,10 +2,6 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-function isAdmin(userId: string | null | undefined) {
-  return `SELECT 1 FROM public.users WHERE id = '${userId}' AND role = 'admin'`
-}
-
 function getCurrentFridayDateString() {
   const now = new Date()
   const day = now.getDay()
@@ -43,7 +39,7 @@ async function requireAdmin(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { supabase, admin, errorResponse } = await requireAdmin(request)
+    const \{ admin, errorResponse \} = await requireAdmin(request)
     if (errorResponse) return errorResponse
 
     const url = new URL(request.url)

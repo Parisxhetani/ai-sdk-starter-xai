@@ -33,9 +33,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   useEffect(() => {
     if (user.role === "admin") {
-      fetchAdminData()
+      void fetchAdminData()
     }
-  }, [user.role])
+  }, [user.role, supabase])
 
   useEffect(() => {
     if (user.role !== "admin") return
@@ -57,7 +57,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       void supabase.removeChannel(channel)
       void supabase.removeChannel(usersChannel)
     }
-  }, [user.role])
+    }, [user.role, supabase])
 
   const fetchAdminData = async () => {
     try {
@@ -430,6 +430,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
+
+
 
 
 

@@ -1,7 +1,6 @@
 ﻿"use client"
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -24,6 +23,8 @@ export interface AdminOrderManagementHandle {
   openEditOrder: (order: Order) => void
 }
 
+const ADMIN_ORDERS_ENDPOINT = "/api/admin/orders"
+
 export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, AdminOrderManagementProps>(({ user, onChange }, ref) => {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
@@ -32,7 +33,6 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Form state for adding/editing orders
   const [showOrderDialog, setShowOrderDialog] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [selectedUserId, setSelectedUserId] = useState("")
@@ -40,44 +40,27 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
 
-  const supabase = useMemo(() => createClient(), [])
   const fridayDate = formatFridayDate(getCurrentFriday())
 
   useEffect(() => {
     if (user.role === "admin") {
-      fetchData()
+      void fetchData()
     }
   }, [user.role])
 
   const fetchData = async () => {
     try {
-      // Fetch all users via admin API
-      const usersResponse = await fetch("/api/admin/users", { credentials: "include", cache: "no-store" })
-      if (!usersResponse.ok) {
-        throw new Error("Failed to load users")
-      }
-      const usersJson = await usersResponse.json()
-      const usersData = ((usersJson?.users as any[]) ?? []).map((entry) => {
-        const { orders: _orders, ...user } = entry
-        return user as User
+      const response = await fetch(`${ADMIN_ORDERS_ENDPOINT}?fridayDate=${fridayDate}`, {
+        cache: "no-store",
+        credentials: "include",
       })
-
-      // Fetch menu items
-      const { data: menuData } = await supabase.from("menu_items").select("*").eq("active", true).order("item, variant")
-
-      // Fetch orders for this Friday
-      const { data: ordersData } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          user:users(name, email, phone)
-        `)
-        .eq("friday_date", fridayDate)
-        .order("created_at")
-
-      setAllUsers(usersData || [])
-      setMenuItems(menuData || [])
-      setOrders(ordersData || [])
+      if (!response.ok) {
+        throw new Error("Failed to load admin data")
+      }
+      const data = await response.json()
+      setAllUsers(data.users || [])
+      setMenuItems((data.menuItems || []).filter((item: MenuItem) => item.active))
+      setOrders(data.orders || [])
     } catch (error) {
       console.error("Error fetching data:", error)
       setError("Failed to fetch data")
@@ -144,66 +127,33 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
     }
 
     try {
-      const orderData = {
+      const body = {
         user_id: selectedUserId,
-        friday_date: fridayDate,
         item: selectedItem,
         variant: selectedVariant,
         notes: notes.trim() || null,
+        friday_date: fridayDate,
       }
 
-      if (editingOrder) {
-        // Update existing order
-        const { error } = await supabase.from("orders").update(orderData).eq("id", editingOrder.id)
+      const response = await fetch(ADMIN_ORDERS_ENDPOINT, {
+        method: editingOrder ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(editingOrder ? { id: editingOrder.id, updates: body } : body),
+      })
 
-        if (error) throw error
+      const data = await response.json()
 
-        // Log update event
-        await supabase.from("events").insert({
-          type: "admin_order_updated",
-          user_id: user.id,
-          payload: {
-            order_id: editingOrder.id,
-            target_user_id: selectedUserId,
-            ...orderData,
-          },
-        })
-
-        setSuccess("Order updated successfully")
-      } else {
-        // Check if user already has an order
-        const existingOrder = orders.find((o) => o.user_id === selectedUserId)
-        if (existingOrder) {
-          setError("This user already has an order for this Friday")
-          setIsLoading(false)
-          return
-        }
-
-        // Create new order
-        const { error } = await supabase.from("orders").insert(orderData)
-
-        if (error) throw error
-
-        // Log create event
-        await supabase.from("events").insert({
-          type: "admin_order_created",
-          user_id: user.id,
-          payload: {
-            target_user_id: selectedUserId,
-            ...orderData,
-          },
-        })
-
-        setSuccess("Order created successfully")
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to save order")
       }
 
-      // Refresh data and close dialog
+      setSuccess(editingOrder ? "Order updated" : "Order created")
       await fetchData()
+      handleCloseDialog()
       onChange?.()
-      setTimeout(() => {
-        handleCloseDialog()
-      }, 1500)
     } catch (error) {
+      console.error("Error saving order:", error)
       setError(error instanceof Error ? error.message : "Failed to save order")
     } finally {
       setIsLoading(false)
@@ -211,231 +161,198 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   }
 
   const handleDeleteOrder = async (order: Order) => {
-    if (!confirm(`Are you sure you want to delete ${order.user?.name}'s order?`)) {
-      return
-    }
+    if (!confirm("Delete this order?")) return
 
     try {
-      const { error } = await supabase.from("orders").delete().eq("id", order.id)
-
-      if (error) throw error
-
-      // Log delete event
-      await supabase.from("events").insert({
-        type: "admin_order_deleted",
-        user_id: user.id,
-        payload: {
-          order_id: order.id,
-          target_user_id: order.user_id,
-          item: order.item,
-          variant: order.variant,
-        },
+      const response = await fetch(`${ADMIN_ORDERS_ENDPOINT}?id=${order.id}`, {
+        method: "DELETE",
+        credentials: "include",
       })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to delete order")
+      }
 
       await fetchData()
       onChange?.()
-      setSuccess("Order deleted successfully")
-      setTimeout(() => setSuccess(null), 3000)
     } catch (error) {
+      console.error("Error deleting order:", error)
       setError(error instanceof Error ? error.message : "Failed to delete order")
-      setTimeout(() => setError(null), 3000)
     }
   }
 
-  if (user.role !== "admin") {
-    return null
-  }
-
-  // Get available variants for selected item
   const availableVariants = menuItems.filter((item) => item.item === selectedItem)
 
-  // Get users who haven't ordered yet
-  const orderedUserIds = orders.map((order) => order.user_id)
-  const usersWithoutOrders = allUsers.filter((u) => !orderedUserIds.includes(u.id))
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Order Management
-          </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Order
-          </Button>
-        </CardTitle>
+    <Card className="bg-background/70">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Order Management</CardTitle>
+          <p className="text-sm text-muted-foreground">Create, edit, or delete orders for any teammate.</p>
+        </div>
+        <Button onClick={() => handleOpenDialog()}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Order
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Success/Error Messages */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {success && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Users without orders */}
-        {usersWithoutOrders.length > 0 && (
+        <div className="space-y-4">
           <div>
-            <h4 className="font-medium mb-2">Users without orders ({usersWithoutOrders.length})</h4>
+            <h4 className="mb-2 font-semibold">Users without orders ({allUsers.filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id)).length})</h4>
             <div className="flex flex-wrap gap-2">
-              {usersWithoutOrders.map((user) => (
-                <Badge
-                  key={user.id}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleOpenDialog()}
-                >
-                  {user.name}
-                </Badge>
-              ))}
+              {allUsers
+                .filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id))
+                .map((user) => (
+                  <Button
+                    key={user.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openCreateOrderForUser(user.id)}
+                  >
+                    <UserPlus className="mr-2 h-3 w-3" />
+                    {user.name}
+                  </Button>
+                ))}
+              {allUsers.filter((u) => u.whitelisted && !orders.some((o) => o.user_id === u.id)).length === 0 && (
+                <p className="text-sm text-muted-foreground">Everyone is covered!</p>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Current Orders Management */}
-        <div>
-          <h4 className="font-medium mb-2">Current Orders ({orders.length})</h4>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {orders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 border rounded">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{order.user?.name}</span>
-                    {order.locked && (
-                      <Badge variant="destructive" className="text-xs">
-                        Locked
-                      </Badge>
-                    )}
+          <div>
+            <h4 className="mb-2 font-semibold">Current Orders ({orders.length})</h4>
+            <div className="space-y-2">
+              {orders.map((order) => (
+                <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{order.user?.name}</p>
+                      {order.locked && (
+                        <Badge variant="destructive" className="text-xs">
+                          Locked
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {order.item} - {order.variant}
+                    </p>
+                    {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {order.item} - {order.variant}
-                  </p>
-                  {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleOpenDialog(order)} disabled={order.locked}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDeleteOrder(order)} disabled={order.locked}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleOpenDialog(order)} disabled={order.locked}>
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDeleteOrder(order)} disabled={order.locked}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {orders.length === 0 && <p className="text-sm text-muted-foreground">No orders yet</p>}
-          </div>
-        </div>
-
-        {/* Order Dialog */}
-        <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingOrder ? "Edit Order" : "Add Order"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="user-select">User *</Label>
-                <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!!editingOrder}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="item-select">Item *</Label>
-                <Select
-                  value={selectedItem}
-                  onValueChange={(value) => {
-                    setSelectedItem(value)
-                    setSelectedVariant("")
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="variant-select">Variant *</Label>
-                <Select value={selectedVariant} onValueChange={setSelectedVariant} disabled={!selectedItem}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a variant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableVariants.map((item) => (
-                      <SelectItem key={item.id} value={item.variant}>
-                        {item.variant}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="notes-input">Notes (optional)</Label>
-                <Textarea
-                  id="notes-input"
-                  placeholder="Any special requests..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={100}
-                />
-                <p className="text-xs text-muted-foreground">{notes.length}/100 characters</p>
-              </div>
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {success && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{success}</AlertDescription>
-                </Alert>
-              )}
+              ))}
+              {orders.length === 0 && <p className="text-sm text-muted-foreground">No orders yet</p>}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={handleCloseDialog}>
-                Cancel
-              </Button>
-              <Button onClick={handleSubmitOrder} disabled={isLoading}>
-                {isLoading ? "Saving..." : editingOrder ? "Update Order" : "Create Order"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingOrder ? "Edit Order" : "Add Order"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="user-select">User *</Label>
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!!editingOrder}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} ({user.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="item-select">Item *</Label>
+                  <Select
+                    value={selectedItem}
+                    onValueChange={(value) => {
+                      setSelectedItem(value)
+                      setSelectedVariant("")
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="variant-select">Variant *</Label>
+                  <Select value={selectedVariant} onValueChange={setSelectedVariant} disabled={!selectedItem}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a variant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableVariants.map((item) => (
+                        <SelectItem key={item.id} value={item.variant}>
+                          {item.variant}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="notes-input">Notes (optional)</Label>
+                  <Textarea
+                    id="notes-input"
+                    placeholder="Any special requests..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-muted-foreground">{notes.length}/100 characters</p>
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {success && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{success}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleCloseDialog}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmitOrder} disabled={isLoading}>
+                  {isLoading ? "Saving..." : editingOrder ? "Update Order" : "Create Order"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardContent>
     </Card>
   )
 })
-AdminOrderManagement.displayName = "AdminOrderManagement"
 
+AdminOrderManagement.displayName = "AdminOrderManagement"
