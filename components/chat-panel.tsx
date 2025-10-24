@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -24,47 +24,58 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
   const [message, setMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
   const userCache = useRef<Map<string, UserMeta>>(new Map())
 
   useEffect(() => {
     let active = true
-    void primeChat()
 
-    const channel = supabase
-      .channel("public:messages")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
-          if (!active) return
-          const enriched = await enrichMessage(payload.new as Message)
-          setMessages((prev) =>
-            [...prev.filter((msg) => msg.id !== enriched.id), enriched]
-              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-              .slice(-MESSAGE_LIMIT),
-          )
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages" },
-        (payload) => {
-          if (!active) return
-          const removedId = (payload.old as Message).id
-          setMessages((prev) => prev.filter((msg) => msg.id !== removedId))
-        },
-      )
+    const subscribe = async () => {
+      await primeChat()
 
-    channel.subscribe()
+      const channel = supabase
+        .channel("public:messages")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages" },
+          async (payload) => {
+            if (!active) return
+            const enriched = await enrichMessage(payload.new as Message)
+            setMessages((prev) =>
+              [...prev.filter((msg) => msg.id !== enriched.id), enriched]
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                .slice(-MESSAGE_LIMIT),
+            )
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "messages" },
+          (payload) => {
+            if (!active) return
+            const removedId = (payload.old as Message).id
+            setMessages((prev) => prev.filter((msg) => msg.id !== removedId))
+          },
+        )
+        .subscribe()
+
+      return () => {
+        active = false
+        void supabase.removeChannel(channel)
+      }
+    }
+
+    const cleanupPromise = subscribe()
 
     return () => {
-      active = false
-      void supabase.removeChannel(channel)
+      void cleanupPromise
     }
   }, [supabase, currentUser])
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (!listRef.current) return
+    const el = listRef.current
+    el.scrollTo({ top: el.scrollHeight, behavior: messages.length === 0 ? "auto" : "smooth" })
   }, [messages])
 
   async function primeChat() {
@@ -106,11 +117,7 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
       return { ...message, user: cached }
     }
 
-    const { data } = await supabase
-      .from("users")
-      .select("name, email")
-      .eq("id", message.user_id)
-      .maybeSingle()
+    const { data } = await supabase.from("users").select("name, email").eq("id", message.user_id).maybeSingle()
 
     if (data) {
       const meta = { name: data.name, email: data.email }
@@ -156,7 +163,7 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
   const isSubmitDisabled = isSending || trimmedLength === 0
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full max-h-[70vh] w-full flex-col border bg-background/95 shadow-lg backdrop-blur">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -170,14 +177,19 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
           Everyone online can see these messages. Keep it Friday-friendly!
         </p>
       </CardHeader>
-      <CardContent className="flex min-h-[320px] flex-1 flex-col gap-3">
-        <div className="flex-1 space-y-3 overflow-y-auto rounded-lg bg-accent/40 p-3" role="log" aria-live="polite">
-          {messages.length === 0 && (
-            <p className="text-sm text-muted-foreground">Say hello! No messages yet.</p>
-          )}
+      <CardContent className="flex flex-1 flex-col gap-3">
+        <div
+          ref={listRef}
+          className="flex-1 space-y-3 overflow-y-auto rounded-lg bg-accent/40 p-3"
+          role="log"
+          aria-live="polite"
+        >
+          {messages.length === 0 && <p className="text-sm text-muted-foreground">Say hello! No messages yet.</p>}
           {messages.map((msg) => {
             const isSelf = msg.user_id === currentUser.id
-            const displayName = isSelf ? "You" : msg.user?.name || msg.user?.email || "Teammate"
+            const displayName = isSelf
+              ? "You"
+              : msg.user?.name || msg.user?.email || userCache.current.get(msg.user_id)?.name || "Teammate"
             const timestamp = new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -201,7 +213,6 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
               </div>
             )
           })}
-          <div ref={bottomRef} />
         </div>
 
         <form onSubmit={handleSend} className="space-y-2">
@@ -226,6 +237,3 @@ export function ChatPanel({ currentUser }: ChatPanelProps) {
     </Card>
   )
 }
-
-
-
