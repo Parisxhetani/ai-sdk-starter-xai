@@ -28,6 +28,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
   const [error, setError] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const formRef = useRef<HTMLFormElement | null>(null)
   const userCache = useRef<Map<string, UserMeta>>(new Map())
 
   useEffect(() => {
@@ -316,10 +317,24 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
           })}
         </div>
 
-        <form onSubmit={handleSend} className="space-y-2">
+        <form ref={formRef} onSubmit={handleSend} className="space-y-2">
           <Textarea
             value={message}
             onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                if (event.nativeEvent.isComposing || event.isComposing) {
+                  return
+                }
+
+                if (isSubmitDisabled) {
+                  return
+                }
+
+                event.preventDefault()
+                formRef.current?.requestSubmit()
+              }
+            }}
             placeholder="Share plans, coordinate orders, celebrate Friday..."
             rows={2}
             maxLength={MAX_MESSAGE_LENGTH}
