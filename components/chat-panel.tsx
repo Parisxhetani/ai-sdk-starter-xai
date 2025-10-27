@@ -186,7 +186,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
   }
 
   return (
-    <Card className="flex h-full max-h-[70vh] w-full flex-col border bg-background/95 shadow-xl">
+    <Card className="flex h-full max-h-[60vh] sm:max-h-[70vh] lg:max-h-[75vh] w-full flex-col border bg-background/95 shadow-xl">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -213,10 +213,17 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
           {messages.length === 0 && <p className="text-sm text-muted-foreground">Say hello! No messages yet.</p>}
           {messages.map((msg) => {
             const isSelf = msg.user_id === currentUser.id
-            const cachedName = userCache.current.get(msg.user_id)?.name
+            const cachedMeta = userCache.current.get(msg.user_id)
+            const resolvedName = msg.user?.name?.trim() || cachedMeta?.name?.trim()
+            const resolvedEmail = msg.user?.email?.trim() || cachedMeta?.email?.trim()
+            const baseName =
+              resolvedName ||
+              resolvedEmail ||
+              (isSelf ? currentUser.name?.trim() || currentUser.email?.trim() : undefined) ||
+              "Teammate"
             const displayName = isSelf
-              ? "You"
-              : msg.user?.name || cachedName || msg.user?.email || userCache.current.get(msg.user_id)?.email || "Teammate"
+              ? `${baseName === "Teammate" ? "You" : baseName} (You)`
+              : baseName
             const timestamp = new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -231,7 +238,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
                     isSelf ? "bg-primary text-primary-foreground" : "bg-background text-foreground",
                   )}
                 >
-                  <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                  <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                     <span>{displayName}</span>
                     <span>-</span>
                     <time dateTime={msg.created_at}>{timestamp}</time>
