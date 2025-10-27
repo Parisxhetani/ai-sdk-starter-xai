@@ -249,12 +249,12 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
   }
 
   return (
-    <Card className="flex max-h-[calc(100vh-6rem)] sm:max-h-[70vh] lg:max-h-[75vh] w-full flex-col overflow-hidden border bg-background/95 shadow-xl">
-      <CardHeader className="pb-4">
+    <Card className="flex max-h-[calc(100vh-6rem)] sm:max-h-[70vh] lg:max-h-[75vh] w-full flex-col overflow-hidden border border-white/60 bg-white/80 shadow-[0_32px_80px_-48px_rgba(58,76,130,0.55)] supports-[backdrop-filter]:backdrop-blur-2xl dark:border-white/10 dark:bg-white/5">
+      <CardHeader className="border-b border-white/50 pb-4 sm:pb-6 dark:border-white/10">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-xl">
+          <CardTitle className="flex items-center gap-2 text-[1.35rem] font-semibold">
             Team Chat
-            <Badge variant="outline" className="border-primary/40 bg-primary/5 text-xs font-normal text-primary">
+            <Badge variant="outline" className="rounded-full border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary shadow-sm">
               Live
             </Badge>
           </CardTitle>
@@ -266,10 +266,10 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
           Everyone online can see these messages. Keep it Friday-friendly!
         </p>
       </CardHeader>
-      <CardContent className="flex flex-1 min-h-0 flex-col gap-3">
+      <CardContent className="flex flex-1 min-h-0 flex-col gap-4">
         <div
           ref={listRef}
-          className="flex-1 space-y-3 overflow-y-auto rounded-lg bg-accent/40 p-3"
+          className="flex-1 space-y-3 overflow-y-auto rounded-[1.5rem] border border-white/50 bg-white/70 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
           role="log"
           aria-live="polite"
         >
@@ -301,8 +301,10 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
               >
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-xl px-3 py-2 text-sm shadow-sm",
-                    isSelf ? "bg-primary text-primary-foreground" : "bg-background text-foreground",
+                    "max-w-[80%] rounded-[1.75rem] px-4 py-3 text-sm shadow-sm transition",
+                    isSelf
+                      ? "bg-primary text-primary-foreground shadow-[0_16px_34px_-20px_rgba(126,150,255,0.7)]"
+                      : "border border-white/60 bg-white/90 text-foreground shadow-[0_16px_34px_-20px_rgba(58,76,130,0.35)] dark:border-white/10 dark:bg-white/10",
                   )}
                 >
                   <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -344,7 +346,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
               {trimmedLength}/{MAX_MESSAGE_LENGTH}
             </span>
             {error && <span className="text-destructive">{error}</span>}
-            <Button type="submit" size="sm" disabled={isSubmitDisabled}>
+            <Button type="submit" size="sm" className="rounded-full px-6" disabled={isSubmitDisabled}>
               {isSending ? "Sending..." : "Send"}
             </Button>
           </div>

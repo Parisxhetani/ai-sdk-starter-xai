@@ -175,75 +175,118 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const isOrdersLocked = currentOrder?.locked || false
   const canOrder = isWindowOpen && !isOrdersLocked
 
+  const teammateCount = useMemo(() => new Set(orders.map((order) => order.user_id)).size, [orders])
+  const totalMeals = useMemo(() => orderSummary.reduce((sum, item) => sum + item.count, 0), [orderSummary])
+  const windowStatusLabel = isOrdersLocked
+    ? "Locked by Admin"
+    : isWindowOpen
+      ? `Open until ${timeframe.endTime}`
+      : `Next window in ${formatTimeUntil()}`
+  const timeframeLabel =
+    timeframe.startTime && timeframe.endTime ? `${timeframe.startTime} - ${timeframe.endTime}` : "Schedule coming soon"
+  const windowBadgeClass = [
+    "mt-3 w-fit rounded-full px-3 py-1 text-xs font-medium shadow-sm",
+    isOrdersLocked
+      ? "border-destructive/40 bg-destructive/15 text-destructive"
+      : canOrder
+        ? "border-primary/30 bg-primary/15 text-primary"
+        : "border-border/60 bg-white/50 text-muted-foreground dark:bg-white/10",
+  ].join(" ")
+
   return (
     <>
-      <div className="min-h-screen bg-background p-4 pb-36">
-      <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4 sm:items-center">
-            <div className="relative h-12 w-12 overflow-hidden rounded-full ring-2 ring-[#1492e6]/30 shadow-md sm:h-16 sm:w-16">
-              <Image
-                src="/brand/logo-mark.png"
-                alt="Facilization Friday mark"
-                fill
-                sizes="(max-width: 640px) 48px, 64px"
-                priority
-                className="object-contain"
-              />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">Friday Tony's Orders</h1>
-              <p className="text-muted-foreground">
-                Welcome back, {user.name}
-                {user.role === "admin" && <Badge className="ml-2">Admin</Badge>}
-              </p>
-              <p className="text-xs uppercase tracking-[0.2em] text-primary/80">Facilization - Very Serious Work</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:self-end">
-            <ThemeToggle />
-            <Button variant="outline" onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
+      <div className="relative min-h-screen overflow-hidden px-4 pb-36 pt-6 sm:px-8 lg:px-12">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+          <div className="absolute bottom-[-6rem] right-[-4rem] h-96 w-96 rounded-full bg-[#ffd6f0]/40 blur-3xl" />
+          <div className="absolute top-1/3 left-[-6rem] h-72 w-72 rounded-full bg-[#9fffe0]/35 blur-3xl" />
         </div>
-
-        {/* Status Bar */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    {isWindowOpen ? "Ordering Window Open" : "Ordering Window Closed"}
-                  </span>
-                  <Badge variant={canOrder ? "default" : "secondary"}>
-                    {isOrdersLocked
-                      ? "Locked by Admin"
-                      : isWindowOpen
-                        ? `Open until ${timeframe.endTime}`
-                        : `Next: ${formatTimeUntil()}`}
-                  </Badge>
+        <div className="relative mx-auto w-full max-w-6xl space-y-10">
+        {/* Hero */}
+        <Card className="overflow-hidden border border-white/60 bg-white/70 p-0 shadow-[0_35px_90px_-45px_rgba(58,76,130,0.45)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/5">
+          <div className="flex flex-col gap-8 p-6 sm:p-10">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-4 sm:items-center">
+                <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-white/80 ring-4 ring-primary/40 shadow-[0_12px_32px_-20px_rgba(58,76,130,0.55)] sm:h-16 sm:w-16 dark:bg-white/10 dark:ring-white/10">
+                  <Image
+                    src="/brand/logo-mark.png"
+                    alt="Facilization Friday mark"
+                    fill
+                    sizes="(max-width: 640px) 56px, 64px"
+                    priority
+                    className="object-contain"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-1">
+                    <h1 className="text-3xl font-semibold sm:text-4xl">Friday Tony's Orders</h1>
+                    <p className="text-muted-foreground">
+                      Welcome back, {user.name}
+                      {user.role === "admin" && (
+                        <Badge variant="outline" className="ml-2 rounded-full border-primary/30 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
+                          Admin
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-primary/70">
+                    Team lunches, but make it delightful
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
-                  {orders.length} ordered
-                </div>
-                <div className="flex items-center gap-1">
-                  <ShoppingBag className="h-4 w-4" />
-                  {orderSummary.reduce((sum, item) => sum + item.count, 0)} meals
-                </div>
+              <div className="flex items-center gap-3 sm:self-end">
+                <ThemeToggle />
+                <Button
+                  variant="outline"
+                  className="rounded-full border-transparent bg-white/70 px-4 py-2 text-sm font-medium text-foreground shadow-[0_8px_24px_-18px_rgba(58,76,130,0.6)] transition hover:-translate-y-[2px] hover:bg-white/80 dark:bg-white/10 dark:text-foreground"
+                  onClick={signOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
               </div>
             </div>
-          </CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.5rem] border border-white/60 bg-white/70 p-5 shadow-[0_24px_60px_-40px_rgba(58,76,130,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                  <Clock className="h-5 w-5 text-primary" />
+                  {isOrdersLocked ? "Ordering paused" : isWindowOpen ? "Window is open" : "Window closed"}
+                </div>
+                <Badge variant="outline" className={windowBadgeClass}>
+                  {windowStatusLabel}
+                </Badge>
+                <p className="mt-3 text-xs text-muted-foreground">{timeframeLabel}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/60 bg-white/70 p-5 shadow-[0_24px_60px_-40px_rgba(58,76,130,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                  <Users className="h-5 w-5 text-primary" />
+                  Team lineup
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold leading-none">{teammateCount}</span>
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">teammates</span>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {teammateCount === 0 ? "No orders yet — start the hype!" : "Ready to feast together this Friday."}
+                </p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/60 bg-white/70 p-5 shadow-[0_24px_60px_-40px_rgba(58,76,130,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                  <ShoppingBag className="h-5 w-5 text-primary" />
+                  Meals planned
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold leading-none">{totalMeals}</span>
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">plates</span>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {totalMeals === 0 ? "Be the first to place an order!" : "Including every tweak and special request."}
+                </p>
+              </div>
+            </div>
+          </div>
         </Card>
-
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-8 lg:grid-cols-2">
           {/* Order Form */}
           <Card>
             <CardHeader>
@@ -269,10 +312,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     }}
                     disabled={!canOrder}
                   >
-                    <SelectTrigger className="bg-background text-foreground border-border">
+                    <SelectTrigger className="border border-border/60 bg-white/70 text-foreground shadow-[0_12px_32px_-26px_rgba(58,76,130,0.45)] backdrop-blur-xl">
                       <SelectValue placeholder="Select an item" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background text-foreground border border-border">
+                    <SelectContent className="border border-border/60 bg-white/80 text-foreground backdrop-blur-xl dark:bg-white/10">
                       {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
                         <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item} value={item}>
                           {item}
@@ -289,10 +332,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     onValueChange={setSelectedVariant}
                     disabled={!canOrder || !selectedItem}
                   >
-                    <SelectTrigger className="bg-background text-foreground border-border">
+                    <SelectTrigger className="border border-border/60 bg-white/70 text-foreground shadow-[0_12px_32px_-26px_rgba(58,76,130,0.45)] backdrop-blur-xl">
                       <SelectValue placeholder="Select a variant" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background text-foreground border border-border">
+                    <SelectContent className="border border-border/60 bg-white/80 text-foreground backdrop-blur-xl dark:bg-white/10">
                       {availableVariants.map((item) => (
                         <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item.id} value={item.variant}>
                           {item.variant}
@@ -329,7 +372,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
                 {error && <p className="text-sm text-destructive">{error}</p>}
 
-                <Button type="submit" className="w-full" disabled={!canOrder || isLoading}>
+                <Button type="submit" className="w-full rounded-full" disabled={!canOrder || isLoading}>
                   {isLoading ? "Saving..." : currentOrder ? "Update Order" : "Place Order"}
                 </Button>
               </form>
@@ -350,7 +393,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     )}
                   </div>
                   {topItemData.length > 0 ? (
-                    <div className="h-56 w-full rounded-xl bg-[var(--accent)]/40 p-3">
+                    <div className="h-56 w-full rounded-[1.5rem] border border-white/50 bg-white/70 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={topItemData}>
                           <CartesianGrid stroke="#E1F2FF" strokeDasharray="3 3" vertical={false} />
@@ -420,7 +463,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
                 <div>
                   <h4 className="mb-2 font-medium">Individual Orders</h4>
-                  <div className="max-h-64 space-y-2 overflow-y-auto">
+                  <div className="max-h-64 space-y-2 overflow-y-auto rounded-[1.5rem] border border-white/50 bg-white/70 p-3 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
                     {orders.map((order) => (
                       <div key={order.id} className="flex items-start justify-between text-sm">
                         <div>
@@ -450,8 +493,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
             <AdminPanel user={user} />
           </div>
         )}
+        </div>
       </div>
-    </div>
 
     <div className="fixed inset-x-4 bottom-4 z-50 w-auto sm:inset-x-auto sm:right-6 sm:bottom-16 sm:w-[min(380px,90vw)] lg:bottom-10 xl:bottom-8">
       <ChatPanel currentUser={user} />

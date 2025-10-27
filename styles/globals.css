@@ -4,112 +4,111 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --theme-green: #84bb2a;
-  --theme-green-strong: #6fa320;
-  --theme-blue: #7dc3ff;
-  --theme-blue-strong: #55a6f0;
-  --theme-accent: #61c4e3;
-  --theme-accent-soft: #e3f7ff;
-  --switch-off: #95d769;
+  --theme-green: #6fd4b4;
+  --theme-green-strong: #59c3a1;
+  --theme-blue: #8ba8ff;
+  --theme-blue-strong: #6f94ff;
+  --theme-accent: #f7b6ff;
+  --theme-accent-soft: #f3f6ff;
+  --switch-off: #a4e6d1;
   --switch-thumb: #ffffff;
-  --button-bg: #7dc3ff;
-  --button-bg-hover: #62b4fa;
-  --button-text: #04213b;
-  --button-outline: #55a6f0;
-  --button-ghost-bg: #d9edff;
-  --field-bg: #e5f8cf;
-  --field-bg-hover: #d4f0b1;
-  --field-border: #95d769;
-  --field-text: #183814;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --button-bg: #7f9cff;
+  --button-bg-hover: #6b88ff;
+  --button-text: #142047;
+  --button-outline: #97a7ff;
+  --button-ghost-bg: rgba(126, 150, 255, 0.12);
+  --field-bg: rgba(255, 255, 255, 0.82);
+  --field-bg-hover: rgba(255, 255, 255, 0.92);
+  --field-border: rgba(126, 150, 255, 0.38);
+  --field-text: #18203a;
+  --background: #f4f7ff;
+  --foreground: #111827;
+  --card: rgba(255, 255, 255, 0.78);
+  --card-foreground: #111827;
+  --popover: rgba(255, 255, 255, 0.95);
+  --popover-foreground: #111827;
   --primary: var(--button-bg);
   --primary-foreground: var(--button-text);
-  --secondary: var(--button-bg);
-  --secondary-foreground: var(--button-text);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: var(--theme-accent-soft);
-  --accent-foreground: #0b2208;
-  --destructive: oklch(0.577 0.245 27.325);
+  --secondary: rgba(255, 255, 255, 0.55);
+  --secondary-foreground: #111827;
+  --muted: rgba(17, 24, 39, 0.05);
+  --muted-foreground: rgba(17, 24, 39, 0.6);
+  --accent: rgba(129, 168, 255, 0.16);
+  --accent-foreground: #111827;
+  --destructive: #ff708c;
   --destructive-foreground: #ffffff;
-  --border: #bde4f6;
-  --input: var(--field-border);
-  --ring: var(--button-outline);
-  --interactive-border: var(--button-outline);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: #f3fbff;
-  --sidebar-foreground: oklch(0.145 0 0);
+  --border: rgba(126, 150, 255, 0.3);
+  --input: rgba(126, 150, 255, 0.32);
+  --ring: rgba(126, 150, 255, 0.6);
+  --interactive-border: rgba(126, 150, 255, 0.45);
+  --chart-1: #7d9cff;
+  --chart-2: #ff9fd3;
+  --chart-3: #8be0c1;
+  --chart-4: #fcd277;
+  --chart-5: #c8a6ff;
+  --radius: 1.25rem;
+  --sidebar: rgba(255, 255, 255, 0.65);
+  --sidebar-foreground: #111827;
   --sidebar-primary: var(--button-bg);
   --sidebar-primary-foreground: var(--button-text);
-  --sidebar-accent: var(--theme-accent-soft);
-  --sidebar-accent-foreground: #0b2208;
-  --sidebar-border: #bde4f6;
-  --sidebar-ring: var(--button-outline);
+  --sidebar-accent: rgba(129, 168, 255, 0.16);
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: rgba(126, 150, 255, 0.22);
+  --sidebar-ring: rgba(126, 150, 255, 0.45);
 }
 
 .dark {
-  --theme-green: #9de44d;
-  --theme-green-strong: #7fc036;
-  --theme-blue: #5dbfff;
-  --theme-blue-strong: #3fa9f5;
-  --theme-accent: #4ccde0;
-  --theme-accent-soft: #123447;
-  --switch-off: #2f4a2f;
-  --switch-thumb: #f4fbff;
-  --button-bg: #3fa9f5;
-  --button-bg-hover: #5dbfff;
-  --button-text: #f4fbff;
-  --button-outline: #4ccde0;
-  --button-ghost-bg: #123447;
-  --field-bg: #233525;
-  --field-bg-hover: #2e412f;
-  --field-border: #4fae45;
-  --field-text: #e4ffe0;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --theme-green: #58d1b0;
+  --theme-green-strong: #41bfa0;
+  --theme-blue: #7d9dff;
+  --theme-blue-strong: #637fff;
+  --theme-accent: #d78cff;
+  --theme-accent-soft: rgba(62, 50, 98, 0.55);
+  --switch-off: #1f2a3f;
+  --switch-thumb: #f5f8ff;
+  --button-bg: #8098ff;
+  --button-bg-hover: #98a9ff;
+  --button-text: #f2f5ff;
+  --button-outline: rgba(154, 172, 255, 0.7);
+  --button-ghost-bg: rgba(128, 152, 255, 0.16);
+  --field-bg: rgba(18, 23, 42, 0.65);
+  --field-bg-hover: rgba(22, 28, 50, 0.75);
+  --field-border: rgba(128, 152, 255, 0.35);
+  --field-text: #e6edff;
+  --background: #0e1320;
+  --foreground: #f2f5ff;
+  --card: rgba(18, 23, 42, 0.78);
+  --card-foreground: #f2f5ff;
+  --popover: rgba(14, 18, 31, 0.92);
+  --popover-foreground: #f2f5ff;
   --primary: var(--button-bg);
   --primary-foreground: var(--button-text);
-  --secondary: var(--button-bg);
-  --secondary-foreground: var(--button-text);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: #8acdec;
-  --accent: var(--button-ghost-bg);
-  --accent-foreground: #d3fff5;
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: #ffeef2;
-  --border: #1f3d3a;
-  --input: var(--field-border);
-  --ring: var(--button-outline);
-  --interactive-border: var(--button-outline);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #111c16;
-  --sidebar-foreground: oklch(0.985 0 0);
+  --secondary: rgba(18, 23, 42, 0.6);
+  --secondary-foreground: #f2f5ff;
+  --muted: rgba(241, 245, 255, 0.08);
+  --muted-foreground: rgba(226, 232, 255, 0.62);
+  --accent: rgba(128, 152, 255, 0.18);
+  --accent-foreground: #f2f5ff;
+  --destructive: #ff7a99;
+  --destructive-foreground: #1b0f15;
+  --border: rgba(128, 152, 255, 0.25);
+  --input: rgba(128, 152, 255, 0.35);
+  --ring: rgba(129, 168, 255, 0.55);
+  --interactive-border: rgba(128, 152, 255, 0.45);
+  --chart-1: #9eaaff;
+  --chart-2: #ff9fd3;
+  --chart-3: #76d5bc;
+  --chart-4: #fcd277;
+  --chart-5: #d4afff;
+  --sidebar: rgba(13, 18, 33, 0.85);
+  --sidebar-foreground: #f2f5ff;
   --sidebar-primary: var(--button-bg);
   --sidebar-primary-foreground: var(--button-text);
-  --sidebar-accent: var(--button-ghost-bg);
-  --sidebar-accent-foreground: #d3fff5;
-  --sidebar-border: #1f3d3a;
-  --sidebar-ring: var(--button-outline);
+  --sidebar-accent: rgba(128, 152, 255, 0.22);
+  --sidebar-accent-foreground: #f8faff;
+  --sidebar-border: rgba(128, 152, 255, 0.28);
+  --sidebar-ring: rgba(129, 168, 255, 0.55);
 }
-
 @layer components {
   .btn-solid-primary {
     background-color: var(--button-bg);
@@ -228,6 +227,21 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    min-height: 100vh;
+    background:
+      radial-gradient(120% 120% at 0% 0%, rgba(143, 184, 255, 0.35), transparent 55%),
+      radial-gradient(120% 120% at 100% 0%, rgba(255, 189, 226, 0.32), transparent 55%),
+      linear-gradient(180deg, #f7f9ff 0%, #eef2ff 100%);
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  .dark body {
+    background:
+      radial-gradient(110% 110% at 0% 0%, rgba(66, 88, 140, 0.45), transparent 55%),
+      radial-gradient(120% 120% at 100% 0%, rgba(118, 64, 155, 0.4), transparent 50%),
+      linear-gradient(180deg, #0d1425 0%, #121929 100%);
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
