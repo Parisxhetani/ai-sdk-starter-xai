@@ -151,7 +151,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
     }
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      setError(Messages are limited to  characters)
+      setError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters`)
       return
     }
 

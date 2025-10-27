@@ -457,5 +457,5 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       <ChatPanel currentUser={user} />
     </div>
   </>
-  )
+  );
 }
