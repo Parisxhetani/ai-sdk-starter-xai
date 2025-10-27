@@ -1,4 +1,4 @@
-// OrderingInterface.tsx
+﻿// OrderingInterface.tsx
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
@@ -267,7 +267,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">teammates</span>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {teammateCount === 0 ? "No orders yet — start the hype!" : "Ready to feast together this Friday."}
+                  {teammateCount === 0 ? "No orders yet â€” start the hype!" : "Ready to feast together this Friday."}
                 </p>
               </div>
               <div className="rounded-[1.5rem] border border-white/60 bg-white/70 p-5 shadow-[0_24px_60px_-40px_rgba(58,76,130,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
@@ -496,9 +496,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         </div>
       </div>
 
-    <div className="fixed inset-x-4 bottom-4 z-50 w-auto sm:inset-x-auto sm:right-6 sm:bottom-16 sm:w-[min(380px,90vw)] lg:bottom-10 xl:bottom-8">
+    <div className="fixed inset-x-4 bottom-4 z-50 w-auto sm:inset-x-auto sm:right-6 sm:bottom-16 sm:w-[min(460px,92vw)] lg:bottom-10 lg:w-[480px] xl:bottom-8">
       <ChatPanel currentUser={user} />
     </div>
   </>
   );
 }
+
