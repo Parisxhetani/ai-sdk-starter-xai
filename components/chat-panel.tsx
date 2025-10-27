@@ -18,7 +18,7 @@ interface ChatPanelProps {
 const MAX_MESSAGE_LENGTH = 1000
 const MESSAGE_LIMIT = 200
 
-type UserMeta = { name: string; email: string }
+type UserMeta = { name: string | null; email: string | null }
 
 export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) {
   const supabase = useMemo(() => createClient(), [])
@@ -101,25 +101,42 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
       return
     }
 
-    const loaded = (data ?? []).map((msg) => {
-      if (msg.user) {
-        userCache.current.set(msg.user_id, msg.user)
-      }
-      return msg as Message
-    })
+    const loaded = await Promise.all(
+      (data ?? []).map(async (msg) => {
+        const typed = msg as Message
+        if (typed.user) {
+          const meta = {
+            name: typed.user.name?.trim() ?? null,
+            email: typed.user.email?.trim() ?? null,
+          }
+          userCache.current.set(typed.user_id, meta)
+          return { ...typed, user: meta }
+        }
+
+        return enrichMessage(typed)
+      }),
+    )
 
     setMessages(loaded)
   }
 
   async function enrichMessage(message: Message): Promise<Message> {
-    if (message.user_id === currentUser.id) {
-      return {
-        ...message,
-        user: {
-          name: currentUser.name,
-          email: currentUser.email,
-        },
+    if (message.user?.name || message.user?.email) {
+      const meta = {
+        name: message.user.name?.trim() ?? null,
+        email: message.user.email?.trim() ?? null,
       }
+      userCache.current.set(message.user_id, meta)
+      return { ...message, user: meta }
+    }
+
+    if (message.user_id === currentUser.id) {
+      const meta = {
+        name: currentUser.name?.trim() ?? null,
+        email: currentUser.email?.trim() ?? null,
+      }
+      userCache.current.set(message.user_id, meta)
+      return { ...message, user: meta }
     }
 
     const cached = userCache.current.get(message.user_id)
@@ -134,7 +151,10 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
       .maybeSingle()
 
     if (data) {
-      const meta = { name: data.name, email: data.email }
+      const meta = {
+        name: data.name?.trim() ?? null,
+        email: data.email?.trim() ?? null,
+      }
       userCache.current.set(message.user_id, meta)
       return { ...message, user: meta }
     }
@@ -219,11 +239,15 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
             const baseName =
               resolvedName ||
               resolvedEmail ||
-              (isSelf ? currentUser.name?.trim() || currentUser.email?.trim() : undefined) ||
-              "Teammate"
-            const displayName = isSelf
-              ? `${baseName === "Teammate" ? "You" : baseName} (You)`
-              : baseName
+              (isSelf ? currentUser.name?.trim() || currentUser.email?.trim() : undefined)
+
+            const displayName = baseName
+              ? isSelf
+                ? `${baseName} (You)`
+                : baseName
+              : isSelf
+                ? `${currentUser.name?.trim() || currentUser.email?.trim() || "You"} (You)`
+                : "Unknown sender"
             const timestamp = new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",

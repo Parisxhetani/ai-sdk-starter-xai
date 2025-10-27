@@ -28,8 +28,8 @@ export interface Order {
   created_at: string
   updated_at: string
   user?: {
-    name: string
-    email: string
+    name: string | null
+    email: string | null
   }
 }
 
@@ -53,8 +53,8 @@ export interface Message {
   content: string
   created_at: string
   user?: {
-    name: string
-    email: string
+    name: string | null
+    email: string | null
   }
 }
 export interface OrderSummary {
