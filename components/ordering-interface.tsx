@@ -453,7 +453,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       </div>
     </div>
 
-    <div className="fixed bottom-24 sm:bottom-16 lg:bottom-10 xl:bottom-8 right-6 z-50 w-[min(380px,90vw)]">
+    <div className="fixed inset-x-4 bottom-4 z-50 w-auto sm:inset-x-auto sm:right-6 sm:bottom-16 sm:w-[min(380px,90vw)] lg:bottom-10 xl:bottom-8">
       <ChatPanel currentUser={user} />
     </div>
   </>

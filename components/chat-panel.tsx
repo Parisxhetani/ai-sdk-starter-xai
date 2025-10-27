@@ -206,7 +206,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
   }
 
   return (
-    <Card className="flex h-full max-h-[60vh] sm:max-h-[70vh] lg:max-h-[75vh] w-full flex-col border bg-background/95 shadow-xl">
+    <Card className="flex max-h-[calc(100vh-6rem)] sm:max-h-[70vh] lg:max-h-[75vh] w-full flex-col overflow-hidden border bg-background/95 shadow-xl">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -223,7 +223,7 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
           Everyone online can see these messages. Keep it Friday-friendly!
         </p>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-3">
+      <CardContent className="flex flex-1 min-h-0 flex-col gap-3">
         <div
           ref={listRef}
           className="flex-1 space-y-3 overflow-y-auto rounded-lg bg-accent/40 p-3"
