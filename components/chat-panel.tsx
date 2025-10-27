@@ -88,6 +88,48 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
     el.scrollTo({ top: el.scrollHeight, behavior: messages.length === 0 ? "auto" : "smooth" })
   }, [messages])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const preloadUsers = async () => {
+      try {
+        const response = await fetch("/api/chat/users")
+        if (!response.ok) {
+          throw new Error(`Failed to load chat users: ${response.status}`)
+        }
+
+        const payload = (await response.json()) as {
+          users: Array<{ id: string; name: string | null; email: string | null }>
+        }
+
+        if (cancelled) return
+
+        payload.users.forEach((entry) => {
+          const meta = {
+            name: entry.name?.trim() ?? null,
+            email: entry.email?.trim() ?? null,
+          }
+          userCache.current.set(entry.id, meta)
+        })
+
+        setMessages((prev) =>
+          prev.map((msg) => {
+            const meta = userCache.current.get(msg.user_id)
+            return meta ? { ...msg, user: meta } : msg
+          }),
+        )
+      } catch (error) {
+        console.error("Failed to preload chat users", error)
+      }
+    }
+
+    void preloadUsers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   async function primeChat() {
     const { data, error: fetchError } = await supabase
       .from("messages")
