@@ -1,15 +1,46 @@
-﻿import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-function getCurrentFridayDateString() {
+const DEFAULT_DAY_OF_WEEK = 5
+
+function parseDayOfWeek(value: string | null | undefined): number {
+  const parsed = Number(value)
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 6) {
+    return parsed
+  }
+  return DEFAULT_DAY_OF_WEEK
+}
+
+function nextDateStringForDay(dayOfWeek: number): string {
   const now = new Date()
   const day = now.getDay()
-  const add = (5 - day + 7) % 7
+  const add = (dayOfWeek - day + 7) % 7
   const target = new Date(now)
   target.setDate(now.getDate() + add)
   target.setHours(0, 0, 0, 0)
   return target.toISOString().split("T")[0]
+}
+
+async function getCurrentOrderDateString(adminClient: ReturnType<typeof createAdminClient>): Promise<string> {
+  try {
+    const { data, error } = await adminClient
+      .from("settings")
+      .select("value")
+      .eq("key", "ordering_day_of_week")
+      .maybeSingle()
+
+    if (error) {
+      console.warn("Falling back to default ordering day due to settings query error:", error.message)
+      return nextDateStringForDay(DEFAULT_DAY_OF_WEEK)
+    }
+
+    const dayOfWeek = parseDayOfWeek((data?.value as string | null | undefined) ?? undefined)
+    return nextDateStringForDay(dayOfWeek)
+  } catch (error) {
+    console.error("Failed to resolve ordering day from settings:", error)
+    return nextDateStringForDay(DEFAULT_DAY_OF_WEEK)
+  }
 }
 
 async function requireAdmin(request: NextRequest) {
@@ -41,7 +72,8 @@ export async function GET(request: NextRequest) {
     const { admin } = result
 
     const url = new URL(request.url)
-    const fridayDate = url.searchParams.get("fridayDate") || getCurrentFridayDateString()
+    const requestedDate = url.searchParams.get("fridayDate")
+    const fridayDate = requestedDate ?? (await getCurrentOrderDateString(admin))
 
     const [ordersResult, eventsResult, menuResult, usersResult] = await Promise.all([
       admin
@@ -87,7 +119,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
     }
 
-    const fridayDate = friday_date || getCurrentFridayDateString()
+    const fridayDate = friday_date || (await getCurrentOrderDateString(admin))
 
     const { data, error } = await admin
       .from("orders")

@@ -1,4 +1,4 @@
-const authSection = document.getElementById("auth-section")
+ï»¿const authSection = document.getElementById("auth-section")
 const orderSection = document.getElementById("order-section")
 const loadingEl = document.getElementById("loading")
 const statusEl = document.getElementById("status-message")
@@ -24,16 +24,32 @@ let activeUser
 let currentOrder
 let menuItems = []
 let teamOrders = []
-let timeframe = { startTime: "09:00", endTime: "12:30" }
+let timeframe = { startTime: "09:00", endTime: "12:30", dayOfWeek: 5 }
 let windowInterval
 
 const DEFAULT_START = "09:00"
 const DEFAULT_END = "12:30"
+const DEFAULT_DAY = 5
 
 function log(...args) {
   if (typeof DEBUG_LOGGING !== "undefined" && DEBUG_LOGGING) {
     console.log("[Tony Extension]", ...args)
   }
+}
+
+function getWeekdayLabel(dayOfWeek) {
+  const labels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  return labels[dayOfWeek] || labels[DEFAULT_DAY]
+}
+
+function getNextDateForDay(dayOfWeek) {
+  const now = new Date()
+  const day = now.getDay()
+  const add = (dayOfWeek - day + 7) % 7
+  const target = new Date(now)
+  target.setDate(now.getDate() + add)
+  target.setHours(0, 0, 0, 0)
+  return target
 }
 
 function setLoading(isLoading, message = "Loading...") {
@@ -138,13 +154,11 @@ async function handleSignedIn(user) {
 }
 
 function getCurrentFriday() {
-  const now = new Date()
-  const day = now.getDay()
-  const add = (5 - day + 7) % 7
-  const next = new Date(now)
-  next.setDate(now.getDate() + add)
-  next.setHours(0, 0, 0, 0)
-  return next
+  const dayOfWeek =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? timeframe.dayOfWeek
+      : DEFAULT_DAY
+  return getNextDateForDay(dayOfWeek)
 }
 
 function formatFridayDate(date) {
@@ -156,24 +170,31 @@ async function getOrderingTimeframe() {
     const { data, error } = await supabaseClient
       .from("settings")
       .select("key, value")
-      .in("key", ["ordering_start_time", "ordering_end_time"])
+      .in("key", ["ordering_start_time", "ordering_end_time", "ordering_day_of_week"])
 
     if (error) throw error
     const map = Object.fromEntries((data || []).map((entry) => [entry.key, entry.value]))
+    const parsedDay = Number(map.ordering_day_of_week)
+    const dayOfWeek = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 6 ? parsedDay : DEFAULT_DAY
     return {
       startTime: map.ordering_start_time || DEFAULT_START,
-      endTime: map.ordering_end_time || DEFAULT_END
+      endTime: map.ordering_end_time || DEFAULT_END,
+      dayOfWeek
     }
   } catch (err) {
     log("Falling back to defaults", err)
-    return { startTime: DEFAULT_START, endTime: DEFAULT_END }
+    return { startTime: DEFAULT_START, endTime: DEFAULT_END, dayOfWeek: DEFAULT_DAY }
   }
 }
 
 async function isOrderingWindowOpen() {
   const now = new Date()
   const tiranaNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Tirane" }))
-  if (tiranaNow.getDay() !== 5) return false
+  const targetDay =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? timeframe.dayOfWeek
+      : DEFAULT_DAY
+  if (tiranaNow.getDay() !== targetDay) return false
 
   const [sh, sm] = timeframe.startTime.split(":").map(Number)
   const [eh, em] = timeframe.endTime.split(":").map(Number)
@@ -188,13 +209,17 @@ function diffUntilNextWindow() {
 
   const next = new Date(tiranaNow)
   const day = tiranaNow.getDay()
+  const targetDay =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? timeframe.dayOfWeek
+      : DEFAULT_DAY
   const current = tiranaNow.getHours() * 60 + tiranaNow.getMinutes()
   const startMinutes = sh * 60 + sm
 
-  if (day === 5 && current < startMinutes) {
+  if (day === targetDay && current < startMinutes) {
     next.setHours(sh, sm, 0, 0)
   } else {
-    const add = (5 - day + 7) % 7 || 7
+    const add = (targetDay - day + 7) % 7 || 7
     next.setDate(tiranaNow.getDate() + add)
     next.setHours(sh, sm, 0, 0)
   }
@@ -210,14 +235,18 @@ function updateWindowBadge(canOrder) {
   if (!windowBadgeEl) return
   const countdown = diffUntilNextWindow()
   windowBadgeEl.className = "window-badge " + (canOrder ? "window-open" : "window-closed")
+  const dayLabel =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? getWeekdayLabel(timeframe.dayOfWeek)
+      : getWeekdayLabel(DEFAULT_DAY)
   if (canOrder) {
-    windowBadgeEl.textContent = `Ordering window open until ${timeframe.endTime} (Tirane)`
+    windowBadgeEl.textContent = `Ordering window open until ${timeframe.endTime} ${dayLabel} (Tirane)`
   } else {
     const parts = []
     if (countdown.days) parts.push(`${countdown.days}d`)
     if (countdown.hours) parts.push(`${countdown.hours}h`)
     parts.push(`${countdown.minutes}m`)
-    windowBadgeEl.textContent = `Window closed · opens in ${parts.join(" ")}`
+    windowBadgeEl.textContent = `Window closed - opens in ${parts.join(" ")}`
   }
 }
 
@@ -359,7 +388,11 @@ function updateSummary() {
     ordersListEl.innerHTML = ""
     return
   }
-  ordersCountEl.textContent = `${teamOrders.length} orders placed this Friday.`
+  const weekdayLabel =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? getWeekdayLabel(timeframe.dayOfWeek)
+      : getWeekdayLabel(DEFAULT_DAY)
+  ordersCountEl.textContent = `${teamOrders.length} orders placed this ${weekdayLabel}.`
   ordersListEl.innerHTML = ""
   teamOrders.forEach((order) => {
     const li = document.createElement("li")
@@ -482,4 +515,5 @@ init().catch((err) => {
   showStatus(err.message || "Failed to initialize extension")
   setLoading(false)
 })
+
 

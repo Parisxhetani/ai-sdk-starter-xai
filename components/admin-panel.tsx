@@ -26,43 +26,61 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [fridayDate, setFridayDate] = useState<string | null>(null)
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
-  const fridayDate = formatFridayDate(getCurrentFriday())
 
   useEffect(() => {
-    if (user.role === "admin") {
-      void fetchAdminData()
+    let cancelled = false
+    void (async () => {
+      try {
+        const date = await getCurrentFriday()
+        if (!cancelled) {
+          setFridayDate(formatFridayDate(date))
+        }
+      } catch (error) {
+        console.error("Failed to resolve ordering date:", error)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }, [user.role, supabase])
+  }, [])
 
   useEffect(() => {
-    if (user.role !== "admin") return
+    if (user.role === "admin" && fridayDate) {
+      void fetchAdminData(fridayDate)
+    }
+  }, [user.role, fridayDate])
+
+  useEffect(() => {
+    if (user.role !== "admin" || !fridayDate) return
 
     const channel = supabase
       .channel("orders-admin-feed")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => fetchAdminData())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, () => fetchAdminData())
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, () => fetchAdminData())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => fetchAdminData(fridayDate))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, () => fetchAdminData(fridayDate))
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, () => fetchAdminData(fridayDate))
       .subscribe()
 
     const usersChannel = supabase
       .channel("users-admin-feed")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "users" }, () => fetchAdminData())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, () => fetchAdminData())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "users" }, () => fetchAdminData(fridayDate))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, () => fetchAdminData(fridayDate))
       .subscribe()
 
     return () => {
       void supabase.removeChannel(channel)
       void supabase.removeChannel(usersChannel)
     }
-    }, [user.role, supabase])
+    }, [user.role, supabase, fridayDate])
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = async (targetDate: string | null = fridayDate) => {
+    if (!targetDate) return
     try {
-      const response = await fetch(`/api/admin/orders?fridayDate=${fridayDate}`, { cache: "no-store", credentials: "include" })
+      const response = await fetch(`/api/admin/orders?fridayDate=${targetDate}`, { cache: "no-store", credentials: "include" })
       if (!response.ok) {
         throw new Error("Failed to load admin data")
       }
@@ -86,6 +104,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
   }
 
   const handleLockToggle = async () => {
+    if (!fridayDate) {
+      console.error("Cannot toggle lock without a target order date")
+      return
+    }
     setIsLoading(true)
     try {
       const newLockState = !isLocked
@@ -103,7 +125,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       })
 
       setIsLocked(newLockState)
-      await fetchAdminData()
+      await fetchAdminData(fridayDate)
     } catch (error) {
       console.error("Error toggling lock:", error)
     } finally {
@@ -112,6 +134,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
   }
 
   const handleExportCSV = async () => {
+    if (!fridayDate) {
+      console.error("Cannot export CSV without a target order date")
+      return
+    }
     try {
       // Log export action
       await supabase.from("events").insert({
@@ -150,6 +176,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
   }
 
   const handlePrintOrders = () => {
+    if (!fridayDate) {
+      console.error("Cannot print orders without a target order date")
+      return
+    }
     if (!orders.length) {
       alert('No orders available to print yet.')
       return

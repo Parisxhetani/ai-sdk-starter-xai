@@ -39,6 +39,8 @@ const FACILIZATION_COLORS = [
   "#1D1D1D",
 ] as const
 
+const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
+
 
 export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const { signOut } = useAuth()
@@ -47,7 +49,11 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [isWindowOpen, setIsWindowOpen] = useState(false)
   const [timeUntilNext, setTimeUntilNext] = useState({ days: 0, hours: 0, minutes: 0 })
-  const [timeframe, setTimeframe] = useState<{ startTime: string; endTime: string }>({ startTime: "", endTime: "" })
+  const [timeframe, setTimeframe] = useState<{ startTime: string; endTime: string; dayOfWeek: number }>({
+    startTime: "",
+    endTime: "",
+    dayOfWeek: 5,
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,9 +61,26 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
   const [phone, setPhone] = useState(user.phone || "")
+  const [fridayDate, setFridayDate] = useState<string | null>(null)
 
   const supabase = createClient()
-  const fridayDate = formatFridayDate(getCurrentFriday())
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const date = await getCurrentFriday()
+        if (!cancelled) {
+          setFridayDate(formatFridayDate(date))
+        }
+      } catch (err) {
+        console.error("Failed to resolve ordering date:", err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const availableVariants = menuItems.filter((i) => i.item === selectedItem && i.active)
 
@@ -90,15 +113,24 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   }, [orders])
 
   useEffect(() => {
+    if (!fridayDate) return
     void fetchEverything()
-    const interval = setInterval(() => { void updateWindowStatus() }, 60_000)
+  }, [fridayDate])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void updateWindowStatus()
+    }, 60_000)
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => { void updateWindowStatus() }, [])
+  useEffect(() => {
+    void updateWindowStatus()
+  }, [])
 
   const fetchEverything = async () => {
-    await Promise.all([fetchData(), fetchTimeframe()])
+    if (!fridayDate) return
+    await Promise.all([fetchData(fridayDate), fetchTimeframe()])
   }
 
   const updateWindowStatus = async () => {
@@ -117,13 +149,13 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     setTimeframe(tf)
   }
 
-  const fetchData = async () => {
+  const fetchData = async (targetDate: string) => {
     try {
       const { data: menuData } = await supabase.from("menu_items").select("*").eq("active", true).order("item, variant")
       const { data: ordersData } = await supabase
-        .from("orders").select(`*, user:users(name, email)`).eq("friday_date", fridayDate).order("created_at")
+        .from("orders").select(`*, user:users(name, email)`).eq("friday_date", targetDate).order("created_at")
       const { data: currentOrderData } = await supabase
-        .from("orders").select("*").eq("user_id", user.id).eq("friday_date", fridayDate).single()
+        .from("orders").select("*").eq("user_id", user.id).eq("friday_date", targetDate).single()
 
       setMenuItems(menuData || [])
       setOrders(ordersData || [])
@@ -143,6 +175,12 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     e.preventDefault()
     setIsLoading(true); setError(null)
 
+    if (!fridayDate) {
+      setError("Ordering date unavailable. Please try again shortly.")
+      setIsLoading(false)
+      return
+    }
+
     if (!selectedItem || !selectedVariant) { setError("Please select both item and variant"); setIsLoading(false); return }
     if (notes.length > 100) { setError("Notes must be 100 characters or less"); setIsLoading(false); return }
 
@@ -159,7 +197,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       }
 
       if (phone !== user.phone) await supabase.from("users").update({ phone }).eq("id", user.id)
-      await fetchData()
+      await fetchData(fridayDate)
     } catch (e) {
       setError(e instanceof Error ? e.message : "An error occurred")
     } finally {
@@ -177,13 +215,20 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
   const teammateCount = useMemo(() => new Set(orders.map((order) => order.user_id)).size, [orders])
   const totalMeals = useMemo(() => orderSummary.reduce((sum, item) => sum + item.count, 0), [orderSummary])
+  const targetWeekday =
+    typeof timeframe.dayOfWeek === "number" && timeframe.dayOfWeek >= 0 && timeframe.dayOfWeek <= 6
+      ? timeframe.dayOfWeek
+      : 5
+  const weekdayLabel = WEEKDAY_LABELS[targetWeekday]
   const windowStatusLabel = isOrdersLocked
     ? "Locked by Admin"
     : isWindowOpen
-      ? `Open until ${timeframe.endTime}`
+      ? `Open until ${timeframe.endTime} ${weekdayLabel}`
       : `Next window in ${formatTimeUntil()}`
   const timeframeLabel =
-    timeframe.startTime && timeframe.endTime ? `${timeframe.startTime} - ${timeframe.endTime}` : "Schedule coming soon"
+    timeframe.startTime && timeframe.endTime
+      ? `${weekdayLabel} ${timeframe.startTime} - ${timeframe.endTime}`
+      : "Schedule coming soon"
   const windowBadgeClass = [
     "mt-3 w-fit rounded-full px-3 py-1 text-xs font-medium shadow-sm",
     isOrdersLocked
@@ -267,7 +312,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">teammates</span>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {teammateCount === 0 ? "No orders yet â€” start the hype!" : "Ready to feast together this Friday."}
+                  {teammateCount === 0 ? "No orders yet - start the hype!" : `Ready to feast together this ${weekdayLabel}.`}
                 </p>
               </div>
               <div className="rounded-[1.5rem] border border-white/60 bg-white/70 p-5 shadow-[0_24px_60px_-40px_rgba(58,76,130,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
@@ -502,4 +547,5 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   </>
   );
 }
+
 

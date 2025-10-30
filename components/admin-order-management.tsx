@@ -32,6 +32,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [fridayDate, setFridayDate] = useState<string | null>(null)
 
   const [showOrderDialog, setShowOrderDialog] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -40,16 +41,33 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
 
-  const fridayDate = formatFridayDate(getCurrentFriday())
   const activeMenuItems = useMemo(() => menuItems.filter((item) => item.active), [menuItems])
 
   useEffect(() => {
-    if (user.role === "admin") {
+    let cancelled = false
+    void (async () => {
+      try {
+        const date = await getCurrentFriday()
+        if (!cancelled) {
+          setFridayDate(formatFridayDate(date))
+        }
+      } catch (err) {
+        console.error("Failed to resolve ordering date:", err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user.role === "admin" && fridayDate) {
       void fetchData()
     }
-  }, [user.role])
+  }, [user.role, fridayDate])
 
   const fetchData = async () => {
+    if (!fridayDate) return
     try {
       const response = await fetch(`${ADMIN_ORDERS_ENDPOINT}?fridayDate=${fridayDate}`, {
         cache: "no-store",
@@ -111,6 +129,10 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   }
 
   const handleSubmitOrder = async () => {
+    if (!fridayDate) {
+      setError("Ordering date unavailable. Please try again shortly.")
+      return
+    }
     setIsLoading(true)
     setError(null)
     setSuccess(null)
