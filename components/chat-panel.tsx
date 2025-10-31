@@ -27,9 +27,11 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(defaultOpen)
+  const [unreadCount, setUnreadCount] = useState(0)
   const listRef = useRef<HTMLDivElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const userCache = useRef<Map<string, UserMeta>>(new Map())
+  const isOpenRef = useRef(isOpen)
 
   useEffect(() => {
     userCache.current.set(currentUser.id, {
@@ -37,6 +39,13 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
       email: currentUser.email,
     })
   }, [currentUser])
+
+  useEffect(() => {
+    isOpenRef.current = isOpen
+    if (isOpen) {
+      setUnreadCount(0)
+    }
+  }, [isOpen])
 
   useEffect(() => {
     let active = true
@@ -57,6 +66,9 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                 .slice(-MESSAGE_LIMIT),
             )
+            if (!isOpenRef.current && enriched.user_id !== currentUser.id) {
+              setUnreadCount((count) => count + 1)
+            }
           },
         )
         .on(
@@ -88,6 +100,12 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
     const el = listRef.current
     el.scrollTo({ top: el.scrollHeight, behavior: messages.length === 0 ? "auto" : "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    if (!isOpen || !listRef.current) return
+    const el = listRef.current
+    el.scrollTo({ top: el.scrollHeight, behavior: messages.length === 0 ? "auto" : "smooth" })
+  }, [isOpen, messages.length])
 
   useEffect(() => {
     let cancelled = false
@@ -241,9 +259,21 @@ export function ChatPanel({ currentUser, defaultOpen = false }: ChatPanelProps) 
 
   if (!isOpen) {
     return (
-      <Button onClick={() => setIsOpen(true)} className="shadow-lg" size="sm">
+      <Button
+        onClick={() => {
+          setIsOpen(true)
+          setUnreadCount(0)
+        }}
+        className="relative shadow-lg"
+        size="sm"
+      >
         <MessageCircle className="mr-2 h-4 w-4" />
         Team Chat
+        {unreadCount > 0 && (
+          <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold leading-none text-destructive-foreground shadow-sm">
+            {unreadCount}
+          </span>
+        )}
       </Button>
     )
   }
