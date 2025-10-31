@@ -146,19 +146,90 @@ export function AdminPanel({ user }: AdminPanelProps) {
         payload: { friday_date: fridayDate, order_count: orders.length },
       })
 
-      // Generate CSV content
-      const csvHeaders = ["Name", "Email", "Phone", "Item", "Variant", "Notes", "Order Time"]
-      const csvRows = orders.map((order) => [
-        order.user?.name || "",
-        order.user?.email || "",
-        order.user?.phone || "",
-        order.item,
-        order.variant,
-        order.notes || "",
-        new Date(order.created_at).toLocaleString(),
-      ])
+      const formatCsvField = (value: string | number | null | undefined) => {
+        const raw = value ?? ""
+        const normalized = typeof raw === "string" ? raw : String(raw)
+        return `"${normalized.replace(/"/g, '""')}"`
+      }
 
-      const csvContent = [csvHeaders, ...csvRows].map((row) => row.map((field) => `"${field}"`).join(",")).join("\n")
+      const groupedOrders = orders.reduce((map, order) => {
+        const key = `${order.item}::${order.variant}`
+        if (!map.has(key)) {
+          map.set(key, { item: order.item, variant: order.variant, orders: [] as Order[] })
+        }
+        map.get(key)!.orders.push(order)
+        return map
+      }, new Map<string, { item: string; variant: string; orders: Order[] }>())
+
+      const sortedGroups = Array.from(groupedOrders.values()).sort((a, b) => {
+        const itemCompare = a.item.localeCompare(b.item)
+        if (itemCompare !== 0) return itemCompare
+        return a.variant.localeCompare(b.variant)
+      })
+
+      const csvLines: string[] = []
+      const pushRow = (fields: Array<string | number | null | undefined>) => {
+        csvLines.push(fields.map(formatCsvField).join(","))
+      }
+
+      pushRow(["Report", "Friday Orders"])
+      pushRow(["Friday Date", fridayDate])
+      pushRow(["Generated At", new Date().toLocaleString()])
+      pushRow(["Total Orders", orders.length])
+      csvLines.push("")
+
+      pushRow(["Section", "Item", "Variant", "Quantity", "Names", "Emails", "Phones", "Notes", "Order Times"])
+      sortedGroups.forEach((group) => {
+        const names = Array.from(
+          new Set(
+            group.orders
+              .map((entry) => entry.user?.name || entry.user?.email || entry.user_id)
+              .filter((value): value is string => Boolean(value)),
+          ),
+        ).join("; ")
+        const emails = Array.from(
+          new Set(group.orders.map((entry) => entry.user?.email).filter((value): value is string => Boolean(value))),
+        ).join("; ")
+        const phones = Array.from(
+          new Set(group.orders.map((entry) => entry.user?.phone).filter((value): value is string => Boolean(value))),
+        ).join("; ")
+        const notesSummary = group.orders
+          .map((entry) => entry.notes?.trim())
+          .filter((note): note is string => Boolean(note))
+          .join(" | ")
+        const orderTimes = group.orders
+          .map((entry) => new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+          .join("; ")
+
+        pushRow(["Summary", group.item, group.variant, group.orders.length, names, emails, phones, notesSummary, orderTimes])
+      })
+
+      csvLines.push("")
+      pushRow(["Section", "Item", "Variant", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
+      sortedGroups.forEach((group) => {
+        pushRow(["Group Total", group.item, group.variant, group.orders.length, "", "", "", "", ""])
+
+        const sortedOrders = [...group.orders].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        )
+
+        sortedOrders.forEach((entry) => {
+          const displayName = entry.user?.name || entry.user?.email || entry.user_id
+          pushRow([
+            "Order",
+            group.item,
+            group.variant,
+            1,
+            displayName,
+            entry.user?.email ?? "",
+            entry.user?.phone ?? "",
+            entry.notes ?? "",
+            new Date(entry.created_at).toLocaleString(),
+          ])
+        })
+      })
+
+      const csvContent = csvLines.join("\n")
 
       // Download CSV
       const blob = new Blob([csvContent], { type: "text/csv" })

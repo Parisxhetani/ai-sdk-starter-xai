@@ -56,6 +56,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [teamRoster, setTeamRoster] = useState<Array<Pick<User, "id" | "name" | "email">>>([])
 
   const [selectedItem, setSelectedItem] = useState("")
   const [selectedVariant, setSelectedVariant] = useState("")
@@ -112,6 +113,30 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     return { orderSummary: summaryList, topItemData: chartData }
   }, [orders])
 
+  const rosterForInsights = useMemo(() => {
+    const map = new Map<string, { id: string; name: string | null; email: string | null }>()
+
+    teamRoster.forEach((member) => {
+      map.set(member.id, {
+        id: member.id,
+        name: member.name ?? null,
+        email: member.email ?? null,
+      })
+    })
+
+    orders.forEach((orderItem) => {
+      if (!map.has(orderItem.user_id) && (orderItem.user?.name || orderItem.user?.email)) {
+        map.set(orderItem.user_id, {
+          id: orderItem.user_id,
+          name: orderItem.user?.name ?? null,
+          email: orderItem.user?.email ?? null,
+        })
+      }
+    })
+
+    return Array.from(map.values())
+  }, [orders, teamRoster])
+
   useEffect(() => {
     if (!fridayDate) return
     void fetchEverything()
@@ -123,6 +148,45 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     }, 60_000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (user.role === "admin") {
+      return
+    }
+
+    let cancelled = false
+
+    const loadRoster = async () => {
+      try {
+        const response = await fetch("/api/chat/users")
+        if (!response.ok) {
+          throw new Error(`Failed to load teammates: ${response.status}`)
+        }
+
+        const payload = (await response.json()) as {
+          users: Array<{ id: string; name: string | null; email: string | null }>
+        }
+
+        if (cancelled) return
+
+        setTeamRoster(
+          payload.users.map((entry) => ({
+            id: entry.id,
+            name: entry.name ?? null,
+            email: entry.email ?? null,
+          })),
+        )
+      } catch (rosterError) {
+        console.error("Unable to load teammate roster", rosterError)
+      }
+    }
+
+    void loadRoster()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user.role])
 
   useEffect(() => {
     void updateWindowStatus()
@@ -531,7 +595,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           </div>
         </div>
 
-        {user.role !== "admin" && <AdminOrderInsights orders={orders} />}
+        {user.role !== "admin" && <AdminOrderInsights orders={orders} users={rosterForInsights} />}
 
         {user.role === "admin" && (
           <div>
