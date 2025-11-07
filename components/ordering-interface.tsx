@@ -27,7 +27,7 @@ import {
   getOrderingTimeframe,
 } from "@/lib/utils/time"
 import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
-import { Clock, Users, ShoppingBag, LogOut } from "lucide-react"
+import { Clock, Users, ShoppingBag, LogOut, Trash2 } from "lucide-react"
 
 interface OrderingInterfaceProps { user: User }
 
@@ -55,6 +55,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     dayOfWeek: 5,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [teamRoster, setTeamRoster] = useState<Array<Pick<User, "id" | "name" | "email">>>([])
 
@@ -269,6 +270,48 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     }
   }
 
+  const handleDeleteOrder = async () => {
+    if (!currentOrder) {
+      setError("No order found to delete.")
+      return
+    }
+
+    if (!fridayDate) {
+      setError("Ordering date unavailable. Please try again shortly.")
+      return
+    }
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", currentOrder.id)
+        .eq("user_id", user.id)
+
+      if (deleteError) throw deleteError
+
+      await supabase.from("events").insert({
+        type: "order_deleted",
+        user_id: user.id,
+        payload: { order_id: currentOrder.id, friday_date: fridayDate },
+      })
+
+      setCurrentOrder(null)
+      setSelectedItem("")
+      setSelectedVariant("")
+      setNotes("")
+
+      await fetchData(fridayDate)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete order")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const formatTimeUntil = () =>
     timeUntilNext.days > 0 ? `${timeUntilNext.days}d ${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
     : timeUntilNext.hours > 0 ? `${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
@@ -419,7 +462,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                       setSelectedItem(value)
                       setSelectedVariant("")
                     }}
-                    disabled={!canOrder}
+                    disabled={!canOrder || isLoading || isDeleting}
                   >
                     <SelectTrigger className="border border-border/60 bg-white/70 text-foreground shadow-[0_12px_32px_-26px_rgba(58,76,130,0.45)] backdrop-blur-xl">
                       <SelectValue placeholder="Select an item" />
@@ -439,7 +482,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                   <Select
                     value={selectedVariant}
                     onValueChange={setSelectedVariant}
-                    disabled={!canOrder || !selectedItem}
+                    disabled={!canOrder || !selectedItem || isLoading || isDeleting}
                   >
                     <SelectTrigger className="border border-border/60 bg-white/70 text-foreground shadow-[0_12px_32px_-26px_rgba(58,76,130,0.45)] backdrop-blur-xl">
                       <SelectValue placeholder="Select a variant" />
@@ -462,7 +505,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     maxLength={100}
-                    disabled={!canOrder}
+                    disabled={!canOrder || isLoading || isDeleting}
                   />
                   <p className="text-xs text-muted-foreground">{notes.length}/100 characters</p>
                 </div>
@@ -475,15 +518,32 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                     placeholder="+355 69 123 4567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={!canOrder}
+                    disabled={!canOrder || isLoading || isDeleting}
                   />
                 </div>
 
                 {error && <p className="text-sm text-destructive">{error}</p>}
 
-                <Button type="submit" className="w-full rounded-full" disabled={!canOrder || isLoading}>
+                <Button type="submit" className="w-full rounded-full" disabled={!canOrder || isLoading || isDeleting}>
                   {isLoading ? "Saving..." : currentOrder ? "Update Order" : "Place Order"}
                 </Button>
+
+                {currentOrder && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full rounded-full"
+                    onClick={handleDeleteOrder}
+                    disabled={!canOrder || isDeleting || isLoading}
+                  >
+                    {isDeleting ? "Deleting..." : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        Delete Order
+                      </>
+                    )}
+                  </Button>
+                )}
               </form>
             </CardContent>
           </Card>
