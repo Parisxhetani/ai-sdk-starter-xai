@@ -55,7 +55,7 @@ function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null): s
     .filter((line): line is string => Boolean(line))
 
   const parts = [
-    `Përshëndetje Toni! Ja porosia jonë për ${getFriendlyOrderDate(fridayDate)}.`,
+    `Përshëndetje! Ja porosia jonë për ${getFriendlyOrderDate(fridayDate)}.`,
     `${orders.length} porosi gjithsej.`,
     "",
     ...summaryLines,
@@ -73,7 +73,7 @@ function formatPhoneForWhatsApp(value: string): string {
   return value.replace(/\D/g, "")
 }
 
-const DEFAULT_TEST_PHONE = "+355698162065"
+const DEFAULT_TEST_PHONE = "+355694006070"
 
 interface AdminPanelProps {
   user: User
@@ -674,7 +674,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
                 <Label htmlFor="test-phone">Test recipient</Label>
                 <Input
                   id="test-phone"
-                  placeholder="+355 69 816 2065"
+                  placeholder="+355 69 40 06 070"
                   value={testPhone}
                   onChange={(event) => setTestPhone(event.target.value)}
                 />
