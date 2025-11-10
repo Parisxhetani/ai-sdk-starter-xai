@@ -16,20 +16,20 @@ import type { AdminOrderManagementHandle } from "@/components/admin-order-manage
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
-import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle } from "lucide-react"
+import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare } from "lucide-react"
 
 function getFriendlyOrderDate(orderDate: string | null): string {
-  if (!orderDate) return "this week"
+  if (!orderDate) return "këtë javë"
   const safeDate = new Date(`${orderDate}T00:00:00`)
   if (Number.isNaN(safeDate.getTime())) {
     return orderDate
   }
-  return safeDate.toLocaleDateString("en-GB", { weekday: "long", month: "long", day: "numeric" })
+  return safeDate.toLocaleDateString("sq-AL", { weekday: "long", month: "long", day: "numeric" })
 }
 
-function buildWhatsAppSummary(orders: Order[], fridayDate: string | null): string {
+function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null): string {
   if (!orders.length) {
-    return "Orders summary will appear here once teammates start submitting meals."
+    return "Përmbledhja e porosive do të shfaqet sapo të kemi porosi të konfirmuara."
   }
 
   const summaryMap = new Map<string, number>()
@@ -49,23 +49,23 @@ function buildWhatsAppSummary(orders: Order[], fridayDate: string | null): strin
     .map((entry) => {
       const trimmed = entry.notes?.trim()
       if (!trimmed) return null
-      const name = entry.user?.name || entry.user?.email || "Unknown"
+      const name = entry.user?.name || entry.user?.email || "I panjohur"
       return `- ${name}: ${trimmed}`
     })
     .filter((line): line is string => Boolean(line))
 
   const parts = [
-    `Hi Tony! Here is our ${getFriendlyOrderDate(fridayDate)} order.`,
-    `${orders.length} meals total.`,
+    `Përshëndetje Toni! Ja porosia jonë për ${getFriendlyOrderDate(fridayDate)}.`,
+    `${orders.length} porosi gjithsej.`,
     "",
     ...summaryLines,
   ]
 
   if (noteLines.length) {
-    parts.push("", "Notes:", ...noteLines)
+    parts.push("", "Shënime:", ...noteLines)
   }
 
-  parts.push("", "Let us know once it's received. Thanks!")
+  parts.push("", "Njofto na sapo ta marrësh. Faleminderit!")
   return parts.join("\n")
 }
 
@@ -96,7 +96,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
-  const whatsappSummary = useMemo(() => buildWhatsAppSummary(orders, fridayDate), [orders, fridayDate])
+  const orderSummaryMessage = useMemo(() => buildOrderSummaryMessage(orders, fridayDate), [orders, fridayDate])
   const sanitizedTonyPhone = useMemo(() => formatPhoneForWhatsApp(tonyPhone), [tonyPhone])
   const sanitizedTestPhone = useMemo(() => formatPhoneForWhatsApp(testPhone), [testPhone])
 
@@ -164,9 +164,9 @@ export function AdminPanel({ user }: AdminPanelProps) {
           setContactError(null)
         }
       } catch (error) {
-        console.error("Failed to load Tony's WhatsApp number:", error)
+        console.error("Failed to load Tony's phone number:", error)
         if (!cancelled) {
-          setContactError("Unable to load Tony's WhatsApp number. Please save it again.")
+          setContactError("Unable to load Tony's phone number. Please save it again.")
         }
       }
     }
@@ -471,7 +471,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
     const normalized = tonyPhone.trim()
 
     if (!normalized) {
-      setContactError("Please enter Tony's WhatsApp number in international format.")
+      setContactError("Please enter Tony's phone number in international format.")
       return
     }
 
@@ -499,7 +499,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       setContactSaved(true)
       setTimeout(() => setContactSaved(false), 2500)
     } catch (error) {
-      console.error("Failed to save Tony's WhatsApp number:", error)
+      console.error("Failed to save Tony's phone number:", error)
       setContactError(error instanceof Error ? error.message : "Failed to save Tony's number")
     } finally {
       setIsSavingTonyPhone(false)
@@ -515,9 +515,17 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
   }
 
+  const openSmsWindow = (phoneDigits: string, message: string) => {
+    const smsUrl = `sms:${phoneDigits}?&body=${encodeURIComponent(message)}`
+    const popup = window.open(smsUrl, "_blank", "noopener,noreferrer")
+    if (!popup) {
+      window.location.href = smsUrl
+    }
+  }
+
   const handleSendWhatsApp = () => {
     if (!sanitizedTonyPhone) {
-      setContactError("Please save Tony's WhatsApp number first.")
+      setContactError("Please save Tony's phone number first.")
       return
     }
 
@@ -526,7 +534,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       return
     }
 
-    openWhatsAppWindow(sanitizedTonyPhone, whatsappSummary, () => {
+    openWhatsAppWindow(sanitizedTonyPhone, orderSummaryMessage, () => {
       alert("Please allow pop-ups so we can open WhatsApp Web.")
     })
   }
@@ -537,9 +545,32 @@ export function AdminPanel({ user }: AdminPanelProps) {
       return
     }
 
-    openWhatsAppWindow(sanitizedTestPhone, whatsappSummary, () => {
+    openWhatsAppWindow(sanitizedTestPhone, orderSummaryMessage, () => {
       alert("Please allow pop-ups so we can open WhatsApp Web.")
     })
+  }
+
+  const handleSendSMS = () => {
+    if (!sanitizedTonyPhone) {
+      setContactError("Please save Tony's phone number first.")
+      return
+    }
+
+    if (!orders.length) {
+      alert("No orders available to send yet.")
+      return
+    }
+
+    openSmsWindow(sanitizedTonyPhone, orderSummaryMessage)
+  }
+
+  const handleSendTestSMS = () => {
+    if (!sanitizedTestPhone) {
+      alert("Enter the phone number you want to test with first.")
+      return
+    }
+
+    openSmsWindow(sanitizedTestPhone, orderSummaryMessage)
   }
 
   if (user.role !== "admin") {
@@ -549,10 +580,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const orderedUserIds = orders.map((order) => order.user_id)
   const missingUsers = allUsers.filter((u) => u.whitelisted && !orderedUserIds.includes(u.id))
   const uniqueItemsCount = new Set(orders.map((order) => `${order.item}::${order.variant}`)).size
-  const whatsappPreview = orders.length
-    ? whatsappSummary
-    : "Orders summary will appear here once there are confirmed orders."
-  const whatsappPreviewRows = Math.min(12, Math.max(5, whatsappPreview.split("\n").length + 1))
+  const messagePreview = orderSummaryMessage
+  const messagePreviewRows = Math.min(12, Math.max(5, messagePreview.split("\n").length + 1))
 
   return (
     <div className="space-y-6">
@@ -600,16 +629,16 @@ export function AdminPanel({ user }: AdminPanelProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
-            WhatsApp Tony
+            WhatsApp & SMS
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Save Tony's number once and send the weekly order through the free WhatsApp deep link.
+            Save Tony's number once and share the weekly order via free WhatsApp or a regular SMS.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <div className="space-y-2">
-              <Label htmlFor="tony-phone">Tony's WhatsApp number</Label>
+              <Label htmlFor="tony-phone">Tony's phone number</Label>
               <Input
                 id="tony-phone"
                 placeholder="+355 69 123 4567"
@@ -632,8 +661,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
             <Label htmlFor="whatsapp-preview">Message preview</Label>
             <Textarea
               id="whatsapp-preview"
-              value={whatsappPreview}
-              rows={whatsappPreviewRows}
+              value={messagePreview}
+              rows={messagePreviewRows}
               readOnly
               className="min-h-[160px] resize-none"
             />
@@ -650,21 +679,34 @@ export function AdminPanel({ user }: AdminPanelProps) {
                   onChange={(event) => setTestPhone(event.target.value)}
                 />
               </div>
-              <Button variant="outline" onClick={handleSendTestWhatsApp}>
-                Send Test Message
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button variant="outline" onClick={handleSendTestWhatsApp}>
+                  Send Test WhatsApp
+                </Button>
+                <Button variant="outline" onClick={handleSendTestSMS}>
+                  Send Test SMS
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Uses the same WhatsApp message but goes only to the number above. Great for checking formatting before Tony sees it.
+              Uses the same Albanian message but only reaches the number above. Perfect for double-checking formatting before Tony sees it.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleSendWhatsApp} disabled={!orders.length || !sanitizedTonyPhone}>
+            <Button
+              onClick={handleSendWhatsApp}
+              disabled={!orders.length || !sanitizedTonyPhone}
+              className="bg-[#25D366] text-white hover:bg-[#1DAA52] disabled:pointer-events-none disabled:opacity-60"
+            >
               <MessageCircle className="mr-2 h-4 w-4" />
               Send via WhatsApp
             </Button>
+            <Button variant="outline" onClick={handleSendSMS} disabled={!orders.length || !sanitizedTonyPhone}>
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Send via SMS
+            </Button>
             <p className="text-xs text-muted-foreground">
-              Opens web.whatsapp.com/wa.me in a new tab—no API keys or fees.
+              WhatsApp opens wa.me in a new tab, while SMS launches the default messaging app—no integrations needed.
             </p>
           </div>
         </CardContent>
