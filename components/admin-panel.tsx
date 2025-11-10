@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
@@ -13,7 +16,64 @@ import type { AdminOrderManagementHandle } from "@/components/admin-order-manage
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
-import { Lock, Unlock, Download, Settings, Users, Eye, Printer } from "lucide-react"
+import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle } from "lucide-react"
+
+function getFriendlyOrderDate(orderDate: string | null): string {
+  if (!orderDate) return "this week"
+  const safeDate = new Date(`${orderDate}T00:00:00`)
+  if (Number.isNaN(safeDate.getTime())) {
+    return orderDate
+  }
+  return safeDate.toLocaleDateString("en-GB", { weekday: "long", month: "long", day: "numeric" })
+}
+
+function buildWhatsAppSummary(orders: Order[], fridayDate: string | null): string {
+  if (!orders.length) {
+    return "Orders summary will appear here once teammates start submitting meals."
+  }
+
+  const summaryMap = new Map<string, number>()
+  orders.forEach((order) => {
+    const label = order.variant ? `${order.item} (${order.variant})` : order.item
+    summaryMap.set(label, (summaryMap.get(label) ?? 0) + 1)
+  })
+
+  const summaryLines = Array.from(summaryMap.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1]
+      return a[0].localeCompare(b[0])
+    })
+    .map(([label, count]) => `• ${label}: ${count}`)
+
+  const noteLines = orders
+    .map((entry) => {
+      const trimmed = entry.notes?.trim()
+      if (!trimmed) return null
+      const name = entry.user?.name || entry.user?.email || "Unknown"
+      return `- ${name}: ${trimmed}`
+    })
+    .filter((line): line is string => Boolean(line))
+
+  const parts = [
+    `Hi Tony! Here is our ${getFriendlyOrderDate(fridayDate)} order.`,
+    `${orders.length} meals total.`,
+    "",
+    ...summaryLines,
+  ]
+
+  if (noteLines.length) {
+    parts.push("", "Notes:", ...noteLines)
+  }
+
+  parts.push("", "Let us know once it's received. Thanks!")
+  return parts.join("\n")
+}
+
+function formatPhoneForWhatsApp(value: string): string {
+  return value.replace(/\D/g, "")
+}
+
+const DEFAULT_TEST_PHONE = "+355698162065"
 
 interface AdminPanelProps {
   user: User
@@ -27,10 +87,18 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [fridayDate, setFridayDate] = useState<string | null>(null)
+  const [tonyPhone, setTonyPhone] = useState("")
+  const [isSavingTonyPhone, setIsSavingTonyPhone] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
+  const [contactSaved, setContactSaved] = useState(false)
+  const [testPhone, setTestPhone] = useState(DEFAULT_TEST_PHONE)
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
+  const whatsappSummary = useMemo(() => buildWhatsAppSummary(orders, fridayDate), [orders, fridayDate])
+  const sanitizedTonyPhone = useMemo(() => formatPhoneForWhatsApp(tonyPhone), [tonyPhone])
+  const sanitizedTestPhone = useMemo(() => formatPhoneForWhatsApp(testPhone), [testPhone])
 
   useEffect(() => {
     let cancelled = false
@@ -76,6 +144,39 @@ export function AdminPanel({ user }: AdminPanelProps) {
       void supabase.removeChannel(usersChannel)
     }
     }, [user.role, supabase, fridayDate])
+
+  useEffect(() => {
+    if (user.role !== "admin") return
+
+    let cancelled = false
+    const loadTonyPhone = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("settings")
+          .select("value")
+          .eq("key", "tony_phone")
+          .maybeSingle()
+
+        if (error) throw error
+
+        if (!cancelled) {
+          setTonyPhone(data?.value ?? "")
+          setContactError(null)
+        }
+      } catch (error) {
+        console.error("Failed to load Tony's WhatsApp number:", error)
+        if (!cancelled) {
+          setContactError("Unable to load Tony's WhatsApp number. Please save it again.")
+        }
+      }
+    }
+
+    void loadTonyPhone()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user.role, supabase])
 
   const fetchAdminData = async (targetDate: string | null = fridayDate) => {
     if (!targetDate) return
@@ -366,6 +467,81 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
   }
 
+  const handleSaveTonyPhone = async () => {
+    const normalized = tonyPhone.trim()
+
+    if (!normalized) {
+      setContactError("Please enter Tony's WhatsApp number in international format.")
+      return
+    }
+
+    if (formatPhoneForWhatsApp(normalized).length < 8) {
+      setContactError("Please include the full international number (e.g. +355 69 123 4567).")
+      return
+    }
+
+    setIsSavingTonyPhone(true)
+    setContactError(null)
+    setContactSaved(false)
+
+    try {
+      const payload = { key: "tony_phone", value: normalized, updated_at: new Date().toISOString() }
+      const { error } = await supabase.from("settings").upsert(payload, { onConflict: "key" })
+
+      if (error) throw error
+
+      await supabase.from("events").insert({
+        type: "tony_phone_updated",
+        user_id: user.id,
+        payload: { tony_phone: normalized },
+      })
+
+      setContactSaved(true)
+      setTimeout(() => setContactSaved(false), 2500)
+    } catch (error) {
+      console.error("Failed to save Tony's WhatsApp number:", error)
+      setContactError(error instanceof Error ? error.message : "Failed to save Tony's number")
+    } finally {
+      setIsSavingTonyPhone(false)
+    }
+  }
+
+  const openWhatsAppWindow = (phoneDigits: string, message: string, onMissingPopup?: () => void) => {
+    const whatsappUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`
+    const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+
+    if (!popup && onMissingPopup) {
+      onMissingPopup()
+    }
+  }
+
+  const handleSendWhatsApp = () => {
+    if (!sanitizedTonyPhone) {
+      setContactError("Please save Tony's WhatsApp number first.")
+      return
+    }
+
+    if (!orders.length) {
+      alert("No orders available to send yet.")
+      return
+    }
+
+    openWhatsAppWindow(sanitizedTonyPhone, whatsappSummary, () => {
+      alert("Please allow pop-ups so we can open WhatsApp Web.")
+    })
+  }
+
+  const handleSendTestWhatsApp = () => {
+    if (!sanitizedTestPhone) {
+      alert("Enter the phone number you want to test with first.")
+      return
+    }
+
+    openWhatsAppWindow(sanitizedTestPhone, whatsappSummary, () => {
+      alert("Please allow pop-ups so we can open WhatsApp Web.")
+    })
+  }
+
   if (user.role !== "admin") {
     return null
   }
@@ -373,6 +549,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const orderedUserIds = orders.map((order) => order.user_id)
   const missingUsers = allUsers.filter((u) => u.whitelisted && !orderedUserIds.includes(u.id))
   const uniqueItemsCount = new Set(orders.map((order) => `${order.item}::${order.variant}`)).size
+  const whatsappPreview = orders.length
+    ? whatsappSummary
+    : "Orders summary will appear here once there are confirmed orders."
+  const whatsappPreviewRows = Math.min(12, Math.max(5, whatsappPreview.split("\n").length + 1))
 
   return (
     <div className="space-y-6">
@@ -412,6 +592,80 @@ export function AdminPanel({ user }: AdminPanelProps) {
               <Printer className="mr-2 h-4 w-4" />
               Print Order Sheet
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            WhatsApp Tony
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Save Tony's number once and send the weekly order through the free WhatsApp deep link.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="tony-phone">Tony's WhatsApp number</Label>
+              <Input
+                id="tony-phone"
+                placeholder="+355 69 123 4567"
+                value={tonyPhone}
+                onChange={(event) => {
+                  setTonyPhone(event.target.value)
+                  setContactError(null)
+                  setContactSaved(false)
+                }}
+                disabled={isSavingTonyPhone}
+              />
+            </div>
+            <Button onClick={handleSaveTonyPhone} disabled={isSavingTonyPhone}>
+              {isSavingTonyPhone ? "Saving..." : "Save Number"}
+            </Button>
+          </div>
+          {contactError && <p className="text-sm text-destructive">{contactError}</p>}
+          {contactSaved && <p className="text-sm text-emerald-600">Number saved. Ready to ping Tony.</p>}
+          <div className="space-y-2">
+            <Label htmlFor="whatsapp-preview">Message preview</Label>
+            <Textarea
+              id="whatsapp-preview"
+              value={whatsappPreview}
+              rows={whatsappPreviewRows}
+              readOnly
+              className="min-h-[160px] resize-none"
+            />
+          </div>
+          <div className="space-y-3 rounded-lg border border-dashed border-border/70 p-4">
+            <p className="text-sm font-medium">Send yourself a test first</p>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="test-phone">Test recipient</Label>
+                <Input
+                  id="test-phone"
+                  placeholder="+355 69 816 2065"
+                  value={testPhone}
+                  onChange={(event) => setTestPhone(event.target.value)}
+                />
+              </div>
+              <Button variant="outline" onClick={handleSendTestWhatsApp}>
+                Send Test Message
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Uses the same WhatsApp message but goes only to the number above. Great for checking formatting before Tony sees it.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={handleSendWhatsApp} disabled={!orders.length || !sanitizedTonyPhone}>
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Send via WhatsApp
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Opens web.whatsapp.com/wa.me in a new tab—no API keys or fees.
+            </p>
           </div>
         </CardContent>
       </Card>
