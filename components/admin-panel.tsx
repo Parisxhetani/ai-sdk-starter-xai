@@ -14,6 +14,7 @@ import { AdminOrderManagement } from "@/components/admin-order-management"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
 import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
 import { AdminUserManagement } from "@/components/admin-user-management"
+import { NotificationSender } from "@/components/notification-sender"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
 import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare } from "lucide-react"
@@ -625,6 +626,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
         </CardContent>
       </Card>
 
+      <NotificationSender fridayDate={fridayDate} users={allUsers} orders={orders} />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -830,8 +833,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
-
-
 
 
 

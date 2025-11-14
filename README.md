@@ -9,6 +9,7 @@ A team lunch ordering system for Tony's restaurant in Tirana, Albania. Built for
 - **Menu Management**: Admin-controlled menu items with variants
 - **Order Management**: One order per user per Friday, editable until locked
 - **Admin Dashboard**: Lock orders, export CSV, print-ready order sheets, manage menu, audit logs
+- **Email Reminders**: Built-in notification sender nudges teammates that still haven't ordered before 12:00
 - **Order Insights**: Charts highlighting most ordered items and teammates keeping the streak
 - **Real-time Updates**: Live team order summary and status
 - **Team Chat**: Friday-wide live chat so everyone can coordinate in real time
@@ -36,6 +37,10 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 
 # Password reset link lifetime (minutes)
 RESET_LINK_DURATION_MINUTES=1440
+
+# Reminder emails
+RESEND_API_KEY=your_resend_api_key
+ORDER_REMINDER_FROM_EMAIL="Lunch Bot <lunch@example.com>"
 ```
 
 
