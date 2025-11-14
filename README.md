@@ -38,22 +38,10 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 # Password reset link lifetime (minutes)
 RESET_LINK_DURATION_MINUTES=1440
 
-# Reminder emails (Mailjet)
-MAILJET_API_KEY=your_mailjet_api_key
-MAILJET_SECRET_KEY=your_mailjet_secret_key
+# Reminder emails
+RESEND_API_KEY=your_resend_api_key
 ORDER_REMINDER_FROM_EMAIL="Lunch Bot <lunch@example.com>"
-CRON_REMINDER_SECRET=long_random_secret_for_cron
 ```
-
-### Reminder email setup steps
-
-1. Create or reuse a Mailjet account (the free tier works) and verify the sender domain or email address you plan to use.
-2. Copy the Mailjet API Key and Secret Key into `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`.
-3. Set `ORDER_REMINDER_FROM_EMAIL` to either a plain address or `"Display Name <address@domain.com>"`.
-4. Generate a long random string for `CRON_REMINDER_SECRET`. This protects the automated reminder endpoint.
-5. Update `vercel.json` so the cron entry calls `/api/admin/reminder-cron?secret=<your-secret>` (replace the placeholder) and deploy. The cron runs every weekday and the route only sends when the Europe/Tirane clock hits 11:00.
-6. Add the same Mailjet keys and cron secret to Vercel → Project → Settings → Environment Variables (and `.env.local` for local dev) and redeploy.
-7. Use the admin dashboard’s Notification Sender for manual nudges; it now shares the same Mailjet credentials.
 
 
 ## Password Reset Setup

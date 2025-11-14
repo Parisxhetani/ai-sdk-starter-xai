@@ -2,12 +2,13 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { sendReminderEmail } from "@/lib/notifications/mailjet"
 
 interface RequireAdminSuccess {
   admin: ReturnType<typeof createAdminClient>
   userId: string
 }
+
+const RESEND_API_URL = "https://api.resend.com/emails"
 
 async function requireAdmin(request: NextRequest): Promise<RequireAdminSuccess | { errorResponse: NextResponse }> {
   const supabase = await createClient()
@@ -68,11 +69,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "At least one valid recipient email is required" }, { status: 400 })
     }
 
-    try {
-      await sendReminderEmail({ recipients, subject, message })
-    } catch (error) {
-      console.error("Mailjet reminder send failed:", error)
-      return NextResponse.json({ error: (error as Error).message ?? "Failed to send reminder email" }, { status: 502 })
+    const apiKey = process.env.RESEND_API_KEY
+    const fromEmail = process.env.ORDER_REMINDER_FROM_EMAIL
+
+    if (!apiKey || !fromEmail) {
+      return NextResponse.json(
+        { error: "Email sending is not configured. Please define RESEND_API_KEY and ORDER_REMINDER_FROM_EMAIL." },
+        { status: 500 },
+      )
+    }
+
+    const resendResponse = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: recipients,
+        subject,
+        text: message,
+      }),
+    })
+
+    if (!resendResponse.ok) {
+      let details: unknown = null
+      try {
+        details = await resendResponse.json()
+      } catch {
+        // ignore parsing failures
+      }
+      console.error("Failed to send reminder email:", details || resendResponse.statusText)
+      return NextResponse.json({ error: "Failed to send reminder email" }, { status: 502 })
     }
 
     await admin.from("events").insert({
