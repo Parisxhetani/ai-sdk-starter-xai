@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/admin/reminder-cron?secret=fri-reminder-5d6b8e3e9b284f1b8a7e9fd4b4f1c2ab",
+      "schedule": "*/5 * * * 1-5"
+    }
+  ]
+}
