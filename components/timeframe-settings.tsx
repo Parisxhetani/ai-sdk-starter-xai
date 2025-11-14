@@ -94,7 +94,7 @@ export function TimeframeSettings({ user }: TimeframeSettingsProps) {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update timeframe")
+      setError(e instanceof Error ? e.message : "Failed to update timeframes")
     } finally {
       setIsLoading(false)
     }
