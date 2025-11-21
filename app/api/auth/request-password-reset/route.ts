@@ -15,6 +15,7 @@ const normalizeBase = (value?: string | null) => {
 function getRedirectBase(request: NextRequest) {
   const originFromUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
   return (
+    normalizeBase(process.env.FRIDAY_APP_BASE_URL) ??
     normalizeBase(process.env.NEXT_PUBLIC_APP_URL) ??
     normalizeBase(request.headers.get("origin")) ??
     normalizeBase(originFromUrl) ??
