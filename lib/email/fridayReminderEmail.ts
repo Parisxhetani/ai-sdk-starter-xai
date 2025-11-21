@@ -4,8 +4,22 @@ import { Resend } from 'resend'
 
 import { loadFridayReminderConfig } from '@/lib/fridayReminderConfig'
 
-const config = loadFridayReminderConfig()
-const resend = new Resend(config.resendApiKey)
+let cachedConfig: ReturnType<typeof loadFridayReminderConfig> | null = null
+let resendClient: Resend | null = null
+
+function getReminderConfig() {
+  if (!cachedConfig) {
+    cachedConfig = loadFridayReminderConfig()
+  }
+  return cachedConfig
+}
+
+function getResendClient(): Resend {
+  if (!resendClient) {
+    resendClient = new Resend(getReminderConfig().resendApiKey)
+  }
+  return resendClient
+}
 
 export interface FridayEmailResult {
   success: boolean
@@ -14,6 +28,8 @@ export interface FridayEmailResult {
 
 export async function sendFridayReminderEmail(to: string, name?: string | null): Promise<FridayEmailResult> {
   try {
+    const config = getReminderConfig()
+    const resend = getResendClient()
     const greetingName = name && name.trim().length > 0 ? name.trim() : 'there'
 
     const textBody =
@@ -45,6 +61,8 @@ export async function sendFridayReminderEmail(to: string, name?: string | null):
 
 export async function sendZeroRecipientFallbackEmail(to: string): Promise<FridayEmailResult> {
   try {
+    const config = getReminderConfig()
+    const resend = getResendClient()
     const textBody =
       'Hi there,\n\n' +
       'Automated Friday reminder run detected zero active recipients.\n' +
