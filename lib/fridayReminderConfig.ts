@@ -1,5 +1,3 @@
-'use server'
-
 /**
  * All environment variable keys required for Friday reminder automation.
  */
