@@ -6,7 +6,7 @@ import { loadFridayReminderConfig } from '@/lib/fridayReminderConfig'
 
 let supabaseServerClient: SupabaseClient | null = null
 
-export function getSupabaseServerClient(): SupabaseClient {
+export async function getSupabaseServerClient(): Promise<SupabaseClient> {
   if (!supabaseServerClient) {
     const config = loadFridayReminderConfig()
     supabaseServerClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {

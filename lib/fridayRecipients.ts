@@ -34,7 +34,7 @@ function nextDateStringForDay(dayOfWeek: number): string {
 }
 
 async function resolveTargetFridayDate(): Promise<string> {
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   const { data, error } = await supabase.from('settings').select('value').eq('key', 'ordering_day_of_week').maybeSingle()
   if (error) {
     console.warn('Unable to read ordering day setting, defaulting to Friday:', error.message)
@@ -45,7 +45,7 @@ async function resolveTargetFridayDate(): Promise<string> {
 }
 
 export async function getActiveFridayRecipients(): Promise<FridayRecipientPayload> {
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   const fridayDate = await resolveTargetFridayDate()
 
   const [usersResult, ordersResult] = await Promise.all([
