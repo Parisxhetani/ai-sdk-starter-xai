@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/components/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
+import { Toaster } from "sonner"
 import "./globals.css"
 
 const TITLE = "Friday Tony's Orders"
@@ -57,6 +58,7 @@ export default function RootLayout({
             <Suspense>{children}</Suspense>
           </AuthProvider>
         </ThemeProvider>
+        <Toaster richColors position="top-right" />
         <Analytics />
       </body>
     </html>

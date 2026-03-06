@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
@@ -17,7 +19,7 @@ import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
-import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare } from "lucide-react"
+import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle } from "lucide-react"
 
 function getFriendlyOrderDate(orderDate: string | null): string {
   if (!orderDate) return "këtë javë"
@@ -74,8 +76,6 @@ function formatPhoneForWhatsApp(value: string): string {
   return value.replace(/\D/g, "")
 }
 
-const DEFAULT_TEST_PHONE = "+355694006070"
-
 interface AdminPanelProps {
   user: User
 }
@@ -92,7 +92,12 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [isSavingTonyPhone, setIsSavingTonyPhone] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
   const [contactSaved, setContactSaved] = useState(false)
-  const [testPhone, setTestPhone] = useState(DEFAULT_TEST_PHONE)
+  const [testPhone, setTestPhone] = useState("")
+  // Menu CRUD state
+  const [showAddMenuDialog, setShowAddMenuDialog] = useState(false)
+  const [newItemName, setNewItemName] = useState("")
+  const [newVariantName, setNewVariantName] = useState("")
+  const [isAddingMenuItem, setIsAddingMenuItem] = useState(false)
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
@@ -228,8 +233,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
       setIsLocked(newLockState)
       await fetchAdminData(fridayDate)
+      toast.success(newLockState ? "🔒 Orders locked. Tony's getting the list!" : "🔓 Orders unlocked. Teammates can edit again.")
     } catch (error) {
       console.error("Error toggling lock:", error)
+      toast.error("Failed to toggle order lock")
     } finally {
       setIsLoading(false)
     }
@@ -574,6 +581,51 @@ export function AdminPanel({ user }: AdminPanelProps) {
     openSmsWindow(sanitizedTestPhone, orderSummaryMessage)
   }
 
+  const handleAddMenuItem = async () => {
+    if (!newItemName.trim() || !newVariantName.trim()) {
+      toast.error("Please enter both item name and variant")
+      return
+    }
+    setIsAddingMenuItem(true)
+    try {
+      const response = await fetch("/api/admin/menu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ item: newItemName.trim(), variant: newVariantName.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to add menu item")
+      toast.success(`Added "${newItemName.trim()} — ${newVariantName.trim()}" to the menu 🎉`)
+      setNewItemName("")
+      setNewVariantName("")
+      setShowAddMenuDialog(false)
+      await fetchAdminData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add menu item")
+    } finally {
+      setIsAddingMenuItem(false)
+    }
+  }
+
+  const handleDeleteMenuItem = async (itemId: string, itemName: string, variant: string) => {
+    if (!confirm(`Delete "${itemName} — ${variant}" from the menu?`)) return
+    try {
+      const response = await fetch(`/api/admin/menu?id=${itemId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to delete menu item")
+      }
+      toast.success(`"${itemName} — ${variant}" removed from menu`)
+      await fetchAdminData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete menu item")
+    }
+  }
+
   if (user.role !== "admin") {
     return null
   }
@@ -586,6 +638,29 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
   return (
     <div className="space-y-6">
+      {/* Missing orders alert */}
+      {missingUsers.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-orange-300/60 bg-orange-50/80 px-4 py-3 text-sm text-orange-800 shadow-sm backdrop-blur-xl dark:border-orange-500/30 dark:bg-orange-900/20 dark:text-orange-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">{missingUsers.length} teammate{missingUsers.length !== 1 ? "s" : ""} haven't ordered yet</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {missingUsers.map((u) => (
+                <Badge key={u.id} variant="outline" className="border-orange-300 bg-white/60 text-orange-700 dark:bg-white/5 dark:text-orange-300">
+                  {u.name || u.email}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {missingUsers.length === 0 && orders.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-300/60 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800 shadow-sm backdrop-blur-xl dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
+          <span className="text-base">🎉</span>
+          <p className="font-semibold">Everyone has ordered! Tony's going to be busy today.</p>
+        </div>
+      )}
+
       <TimeframeSettings user={user} />
 
       <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />\r\n\r\n      <AdminOrderInsights orders={orders} users={allUsers} />
@@ -773,8 +848,12 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
       {/* Menu Management */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Menu Management</CardTitle>
+          <Button size="sm" onClick={() => setShowAddMenuDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -789,19 +868,77 @@ export function AdminPanel({ user }: AdminPanelProps) {
                         <span className={menuItem.active ? "" : "text-muted-foreground line-through"}>
                           {menuItem.variant}
                         </span>
-                        <Switch
-                          className="data-[state=checked]:bg-primary"
-                          checked={menuItem.active}
-                          onCheckedChange={() => toggleMenuItem(menuItem.id, menuItem.active)}
-                        />
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            className="data-[state=checked]:bg-primary"
+                            checked={menuItem.active}
+                            onCheckedChange={() => toggleMenuItem(menuItem.id, menuItem.active)}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDeleteMenuItem(menuItem.id, menuItem.item, menuItem.variant)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                 </div>
               </div>
             ))}
+            {menuItems.length === 0 && (
+              <p className="text-sm text-muted-foreground">No menu items yet. Add some above!</p>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Menu Item Dialog */}
+      <Dialog open={showAddMenuDialog} onOpenChange={setShowAddMenuDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Menu Item</DialogTitle>
+            <DialogDescription>
+              Add a new item or variant. To add a variant of an existing item, use the exact same item name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-item-name">Item name</Label>
+              <Input
+                id="new-item-name"
+                placeholder="e.g. Burger"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAddMenuItem() }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-variant-name">Variant</Label>
+              <Input
+                id="new-variant-name"
+                placeholder="e.g. With Cheese"
+                value={newVariantName}
+                onChange={(e) => setNewVariantName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAddMenuItem() }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setShowAddMenuDialog(false); setNewItemName(""); setNewVariantName("") }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddMenuItem} disabled={isAddingMenuItem}>
+              {isAddingMenuItem ? "Adding..." : "Add to Menu"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Audit Log */}
       <Card>
