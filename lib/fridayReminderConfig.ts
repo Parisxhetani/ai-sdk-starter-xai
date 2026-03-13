@@ -42,7 +42,7 @@ function requireEnv(key: FridayReminderEnvKey, fallback?: string): string {
 }
 
 export function loadFridayReminderConfig(): FridayReminderConfig {
-  const appBaseUrl = process.env.FRIDAY_APP_BASE_URL?.trim() || 'https://fz-friday-order.vercel.app'
+  const appBaseUrl = process.env.FRIDAY_APP_BASE_URL?.trim() || 'https://fridayorders.vercel.app'
   const cronDescription = process.env.FRIDAY_CRON_DESCRIPTION?.trim() || 'Every Friday at 10:00 UTC via Vercel cron'
 
   const supabaseUrl = requireEnv('SUPABASE_URL')
