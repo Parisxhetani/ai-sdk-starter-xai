@@ -1,5 +1,3 @@
-import { LRUCache } from "lru-cache"
-
 interface RateLimitOptions {
   intervalMs: number // Time window in milliseconds
   maxRequests: number // Max requests per window
@@ -13,15 +11,19 @@ interface RateLimitResult {
 }
 
 // In-memory rate limit store (per IP/user)
-const ipStore = new LRUCache<string, { count: number; resetAt: number }>({
-  max: 10000,
-  ttl: 5 * 60 * 1000, // 5 minutes
-})
+const ipStore = new Map<string, { count: number; resetAt: number }>()
+const userStore = new Map<string, { count: number; resetAt: number }>()
 
-const userStore = new LRUCache<string, { count: number; resetAt: number }>({
-  max: 10000,
-  ttl: 5 * 60 * 1000,
-})
+// Cleanup old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, value] of ipStore.entries()) {
+    if (now > value.resetAt) ipStore.delete(key)
+  }
+  for (const [key, value] of userStore.entries()) {
+    if (now > value.resetAt) userStore.delete(key)
+  }
+}, 5 * 60 * 1000)
 
 export function createRateLimiter(options: RateLimitOptions) {
   const { intervalMs, maxRequests } = options
