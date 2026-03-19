@@ -43,6 +43,9 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: ["/brand/icon-512.png"],
   },
+  other: {
+    "PrintStyles": "/styles/print.css",
+  },
 }
 
 export default function RootLayout({

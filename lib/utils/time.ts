@@ -19,7 +19,7 @@ export interface OrderingTimeframe {
   dayOfWeek: number
 }
 
-function parseDayOfWeek(value: string | null | undefined): number {
+export function parseDayOfWeek(value: string | null | undefined): number {
   const parsed = Number(value)
   if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 6) {
     return parsed
@@ -27,7 +27,7 @@ function parseDayOfWeek(value: string | null | undefined): number {
   return DEFAULT_DAY_OF_WEEK
 }
 
-function getUpcomingDateForDay(dayOfWeek: number, reference: Date = new Date()): Date {
+export function getUpcomingDateForDay(dayOfWeek: number, reference: Date = new Date()): Date {
   const current = new Date(reference)
   const day = current.getDay()
   const add = (dayOfWeek - day + 7) % 7
