@@ -59,46 +59,56 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
+DROP POLICY IF EXISTS "Users can view their own data" ON public.users;
 CREATE POLICY "Users can view their own data" ON public.users
   FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update their own data" ON public.users;
 CREATE POLICY "Users can update their own data" ON public.users
   FOR UPDATE USING (auth.uid() = id);
 
 -- RLS Policies for menu_items (read-only for all authenticated users)
+DROP POLICY IF EXISTS "Authenticated users can view menu items" ON public.menu_items;
 CREATE POLICY "Authenticated users can view menu items" ON public.menu_items
   FOR SELECT USING (auth.role() = 'authenticated');
 
 -- RLS Policies for orders
+DROP POLICY IF EXISTS "Users can view all orders" ON public.orders;
 CREATE POLICY "Users can view all orders" ON public.orders
   FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Users can insert their own orders" ON public.orders;
 CREATE POLICY "Users can insert their own orders" ON public.orders
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own orders" ON public.orders;
 CREATE POLICY "Users can update their own orders" ON public.orders
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own orders" ON public.orders;
 CREATE POLICY "Users can delete their own orders" ON public.orders
   FOR DELETE USING (auth.uid() = user_id);
 
 -- RLS Policies for events (admin only)
+DROP POLICY IF EXISTS "Admin can view events" ON public.events;
 CREATE POLICY "Admin can view events" ON public.events
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
+DROP POLICY IF EXISTS "Authenticated users can insert events" ON public.events;
 CREATE POLICY "Authenticated users can insert events" ON public.events
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- RLS Policies for settings (admin only)
+DROP POLICY IF EXISTS "Admin can manage settings" ON public.settings;
 CREATE POLICY "Admin can manage settings" ON public.settings
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role = 'admin'
     )
   );
@@ -113,11 +123,14 @@ END;
 $$ language 'plpgsql';
 
 -- Add updated_at triggers
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_settings_updated_at ON public.settings;
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
