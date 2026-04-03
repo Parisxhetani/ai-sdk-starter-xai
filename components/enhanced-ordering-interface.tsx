@@ -36,7 +36,7 @@ import { MenuSearchFilter } from "@/components/menu-search-filter"
 import { OrderConfirmationModal } from "@/components/order-confirmation-modal"
 import { OrderingInterfaceSkeleton, ChatPanelSkeleton } from "@/components/skeleton-loaders"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { cn } from "@/lib/utils"
+import { cn, formatLekPrice, formatMenuVariantLabel, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard"
@@ -169,6 +169,24 @@ export function EnhancedOrderingInterface({ user, isAdmin }: OrderingInterfacePr
   const availableVariants = useMemo(() => {
     return menuItems.filter((i) => i.item === selectedItem && i.active)
   }, [menuItems, selectedItem])
+
+  const selectedMenuItem = useMemo(
+    () => menuItems.find((item) => item.item === selectedItem && item.variant === selectedVariant) ?? null,
+    [menuItems, selectedItem, selectedVariant],
+  )
+
+  const menuPriceMap = useMemo(
+    () => new Map(menuItems.map((item) => [getMenuItemLookupKey(item.item, item.variant), item.price_all])),
+    [menuItems],
+  )
+
+  const getOrderPriceLabel = useCallback(
+    (item: string, variant: string) => formatLekPrice(menuPriceMap.get(getMenuItemLookupKey(item, variant))),
+    [menuPriceMap],
+  )
+
+  const selectedMenuPrice = formatLekPrice(selectedMenuItem?.price_all)
+  const currentOrderPriceLabel = currentOrder ? getOrderPriceLabel(currentOrder.item, currentOrder.variant) : null
   
   const { orderSummary, topItemData } = useMemo(() => {
     const summaryMap = new Map<string, OrderSummary>()
@@ -185,12 +203,12 @@ export function EnhancedOrderingInterface({ user, isAdmin }: OrderingInterfacePr
     
     const summaryList = Array.from(summaryMap.values()).sort((a, b) => b.count - a.count)
     const chartData = summaryList.slice(0, 5).map((entry) => ({
-      label: entry.variant ? `${entry.item} (${entry.variant})` : entry.item,
+      label: formatOrderLine(entry.item, entry.variant, menuPriceMap.get(getMenuItemLookupKey(entry.item, entry.variant))),
       value: entry.count,
     }))
     
     return { orderSummary: summaryList, topItemData: chartData }
-  }, [orders])
+  }, [menuPriceMap, orders])
   
   const teammateCount = useMemo(() => new Set(orders.map((order) => order.user_id)).size, [orders])
   const totalMeals = useMemo(() => orderSummary.reduce((sum, item) => sum + item.count, 0), [orderSummary])
@@ -530,6 +548,25 @@ export function EnhancedOrderingInterface({ user, isAdmin }: OrderingInterfacePr
   
   const handleCopyOrderSummary = async () => {
     if (!currentOrder) return
+
+    const clipboardSummary = [
+      "My Friday Order",
+      "--------------------",
+      formatOrderLine(
+        currentOrder.item,
+        currentOrder.variant,
+        menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
+      ),
+      currentOrderPriceLabel ? `Price: ${currentOrderPriceLabel}` : null,
+      currentOrder.notes ? `Notes: ${currentOrder.notes}` : null,
+      "--------------------",
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n")
+
+    await copyToClipboard(clipboardSummary)
+    return
+    /*
     
     const summary = `🍽️ My Friday Order
 ━━━━━━━━━━━━━━━━━━━━
@@ -539,6 +576,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
 ━━━━━━━━━━━━━━━━━━━━`
     
     await copyToClipboard(summary)
+    */
   }
   
   const formatTimeUntil = () =>
@@ -815,6 +853,16 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
                     </Button>
                   )}
                 </div>
+                {currentOrder && currentOrderPriceLabel && (
+                  <p className="text-sm text-muted-foreground">
+                    Current selection:{" "}
+                    {formatOrderLine(
+                      currentOrder.item,
+                      currentOrder.variant,
+                      menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
+                    )}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmitOrder} className="space-y-4">
@@ -856,7 +904,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
                           const tags = getDietaryTags(variant.variant)
                           return (
                             <SelectItem key={variant.id} value={variant.variant}>
-                              {variant.variant}
+                              {formatMenuVariantLabel(variant.variant, variant.price_all)}
                               {tags.map((tag, i) => (
                                 <span key={i} className="ml-2 text-xs">{tag.emoji}</span>
                               ))}
@@ -865,6 +913,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
                         })}
                       </SelectContent>
                     </Select>
+                    {selectedMenuPrice && <p className="text-xs text-muted-foreground">Current price: {selectedMenuPrice}</p>}
                   </div>
                   
                   <div className="space-y-2">
@@ -989,7 +1038,12 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
                             {order.user?.name || order.user?.email || "Unknown"}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
-                            {getFoodEmoji(order.item)} {order.item} - {order.variant}
+                            {getFoodEmoji(order.item)}{" "}
+                            {formatOrderLine(
+                              order.item,
+                              order.variant,
+                              menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant)),
+                            )}
                           </p>
                         </div>
                         {order.notes && (
@@ -1026,7 +1080,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
 
           {/* Order Insights */}
           {isAdmin && (
-            <AdminOrderInsights />
+            <AdminOrderInsights orders={orders} menuItems={menuItems} />
           )}
 
           {/* Chat Panel */}

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { formatLekPrice, formatMenuVariantLabel } from "@/lib/utils"
+import { formatMenuVariantLabel, formatOrderLine } from "@/lib/utils"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { User, MenuItem, Order } from "@/lib/types"
 import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
@@ -247,8 +247,6 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
             <div className="space-y-2">
               {orders.map((order) => {
                 const menuMatch = menuItems.find((item) => item.item === order.item && item.variant === order.variant)
-                const priceLabel = formatLekPrice(menuMatch?.price_all)
-
                 return (
                   <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -261,8 +259,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {order.item} - {order.variant}
-                        {priceLabel ? ` (${priceLabel})` : ""}
+                        {formatOrderLine(order.item, order.variant, menuMatch?.price_all)}
                       </p>
                       {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
                     </div>

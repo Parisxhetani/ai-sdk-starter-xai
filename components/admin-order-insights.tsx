@@ -15,10 +15,12 @@ import {
 } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Order, User } from "@/lib/types"
+import { formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
+import type { MenuItem, Order, User } from "@/lib/types"
 
 interface AdminOrderInsightsProps {
   orders: Order[]
+  menuItems?: MenuItem[]
   users?: Pick<User, "id" | "name" | "email">[]
 }
 
@@ -29,7 +31,7 @@ interface ChartDatum {
 
 const chartPalette = ["#1492E6", "#3A88CF", "#84BB2A", "#0693E3", "#1D1D1D"]
 
-export function AdminOrderInsights({ orders, users }: AdminOrderInsightsProps) {
+export function AdminOrderInsights({ orders, menuItems, users }: AdminOrderInsightsProps) {
   const nameLookup = useMemo(() => {
     const map = new Map<string, string>()
     users?.forEach((user) => {
@@ -38,12 +40,24 @@ export function AdminOrderInsights({ orders, users }: AdminOrderInsightsProps) {
     return map
   }, [users])
 
+  const priceLookup = useMemo(() => {
+    const map = new Map<string, number | null | undefined>()
+    menuItems?.forEach((item) => {
+      map.set(getMenuItemLookupKey(item.item, item.variant), item.price_all)
+    })
+    return map
+  }, [menuItems])
+
   const { itemData, userData } = useMemo(() => {
     const itemMap = new Map<string, number>()
     const userMap = new Map<string, number>()
 
     orders.forEach((order) => {
-      const itemLabel = `${order.item} - ${order.variant}`
+      const itemLabel = formatOrderLine(
+        order.item,
+        order.variant,
+        priceLookup.get(getMenuItemLookupKey(order.item, order.variant)),
+      )
       itemMap.set(itemLabel, (itemMap.get(itemLabel) ?? 0) + 1)
 
       const displayName =
@@ -66,7 +80,7 @@ export function AdminOrderInsights({ orders, users }: AdminOrderInsightsProps) {
       .slice(0, 5)
 
     return { itemData, userData }
-  }, [orders, nameLookup])
+  }, [orders, nameLookup, priceLookup])
 
   if (orders.length === 0) {
     return null

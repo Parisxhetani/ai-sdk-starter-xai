@@ -36,6 +36,11 @@ function formatPrice(priceAll) {
   return ` - ALL ${priceAll}`
 }
 
+function getMenuPrice(itemName, variantName) {
+  const match = menuItems.find((entry) => entry.item === itemName && entry.variant === variantName)
+  return match?.price_all
+}
+
 function log(...args) {
   if (typeof DEBUG_LOGGING !== "undefined" && DEBUG_LOGGING) {
     console.log("[Tony Extension]", ...args)
@@ -402,7 +407,9 @@ function updateSummary() {
   teamOrders.forEach((order) => {
     const li = document.createElement("li")
     const name = order.user?.name || "Unknown"
-    li.textContent = `${name}: ${order.item}${order.variant ? ` (${order.variant})` : ""}`
+    li.textContent = `${name}: ${order.item}${order.variant ? ` (${order.variant})` : ""}${formatPrice(
+      getMenuPrice(order.item, order.variant)
+    )}`
     ordersListEl.appendChild(li)
   })
 }

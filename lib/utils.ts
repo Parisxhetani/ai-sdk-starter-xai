@@ -17,3 +17,17 @@ export function formatMenuVariantLabel(variant: string, priceAll?: number | null
   const formattedPrice = formatLekPrice(priceAll)
   return formattedPrice ? `${variant} - ${formattedPrice}` : variant
 }
+
+export function getMenuItemLookupKey(item: string, variant: string) {
+  return `${item}::${variant}`
+}
+
+export function appendPriceLabel(label: string, priceAll?: number | null) {
+  const formattedPrice = formatLekPrice(priceAll)
+  return formattedPrice ? `${label} (${formattedPrice})` : label
+}
+
+export function formatOrderLine(item: string, variant: string, priceAll?: number | null) {
+  const baseLabel = variant ? `${item} - ${variant}` : item
+  return appendPriceLabel(baseLabel, priceAll)
+}

@@ -18,7 +18,7 @@ import type { AdminOrderManagementHandle } from "@/components/admin-order-manage
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
-import { formatLekPrice } from "@/lib/utils"
+import { formatLekPrice, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
 import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle } from "lucide-react"
 
@@ -31,14 +31,19 @@ function getFriendlyOrderDate(orderDate: string | null): string {
   return safeDate.toLocaleDateString("sq-AL", { weekday: "long", month: "long", day: "numeric" })
 }
 
-function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null): string {
+function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null, menuItems: MenuItem[]): string {
   if (!orders.length) {
     return "Përmbledhja e porosive do të shfaqet sapo të kemi porosi të konfirmuara."
   }
 
+  const priceMap = new Map(menuItems.map((item) => [getMenuItemLookupKey(item.item, item.variant), item.price_all]))
   const summaryMap = new Map<string, number>()
   orders.forEach((order) => {
-    const label = order.variant ? `${order.item} (${order.variant})` : order.item
+    const label = formatOrderLine(
+      order.item,
+      order.variant,
+      priceMap.get(getMenuItemLookupKey(order.item, order.variant)),
+    )
     summaryMap.set(label, (summaryMap.get(label) ?? 0) + 1)
   })
 
@@ -48,6 +53,11 @@ function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null): s
       return a[0].localeCompare(b[0])
     })
     .map(([label, count]) => `• ${label}: ${count}`)
+
+  const estimatedTotal = orders.reduce((sum, order) => {
+    const priceAll = priceMap.get(getMenuItemLookupKey(order.item, order.variant))
+    return sum + (typeof priceAll === "number" ? priceAll : 0)
+  }, 0)
 
   const noteLines = orders
     .map((entry) => {
@@ -61,9 +71,10 @@ function buildOrderSummaryMessage(orders: Order[], fridayDate: string | null): s
   const parts = [
     `Përshëndetje! Ja porosia jonë për ${getFriendlyOrderDate(fridayDate)}.`,
     `${orders.length} porosi gjithsej.`,
+    estimatedTotal > 0 ? `Totali i vlerësuar: ALL ${estimatedTotal}.` : null,
     "",
     ...summaryLines,
-  ]
+  ].filter((value): value is string => Boolean(value))
 
   if (noteLines.length) {
     parts.push("", "Shënime:", ...noteLines)
@@ -103,7 +114,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
-  const orderSummaryMessage = useMemo(() => buildOrderSummaryMessage(orders, fridayDate), [orders, fridayDate])
+  const menuPriceMap = useMemo(
+    () => new Map(menuItems.map((item) => [getMenuItemLookupKey(item.item, item.variant), item.price_all])),
+    [menuItems],
+  )
+  const orderSummaryMessage = useMemo(
+    () => buildOrderSummaryMessage(orders, fridayDate, menuItems),
+    [orders, fridayDate, menuItems],
+  )
   const sanitizedTonyPhone = useMemo(() => formatPhoneForWhatsApp(tonyPhone), [tonyPhone])
   const sanitizedTestPhone = useMemo(() => formatPhoneForWhatsApp(testPhone), [testPhone])
 
@@ -265,11 +283,16 @@ export function AdminPanel({ user }: AdminPanelProps) {
       const groupedOrders = orders.reduce((map, order) => {
         const key = `${order.item}::${order.variant}`
         if (!map.has(key)) {
-          map.set(key, { item: order.item, variant: order.variant, orders: [] as Order[] })
+          map.set(key, {
+            item: order.item,
+            variant: order.variant,
+            priceAll: menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant)) ?? null,
+            orders: [] as Order[],
+          })
         }
         map.get(key)!.orders.push(order)
         return map
-      }, new Map<string, { item: string; variant: string; orders: Order[] }>())
+      }, new Map<string, { item: string; variant: string; priceAll: number | null; orders: Order[] }>())
 
       const sortedGroups = Array.from(groupedOrders.values()).sort((a, b) => {
         const itemCompare = a.item.localeCompare(b.item)
@@ -286,9 +309,16 @@ export function AdminPanel({ user }: AdminPanelProps) {
       pushRow(["Friday Date", fridayDate])
       pushRow(["Generated At", new Date().toLocaleString()])
       pushRow(["Total Orders", orders.length])
+      pushRow([
+        "Estimated Total (ALL)",
+        orders.reduce((sum, order) => {
+          const priceAll = menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant))
+          return sum + (typeof priceAll === "number" ? priceAll : 0)
+        }, 0),
+      ])
       csvLines.push("")
 
-      pushRow(["Section", "Item", "Variant", "Quantity", "Names", "Emails", "Phones", "Notes", "Order Times"])
+      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Quantity", "Names", "Emails", "Phones", "Notes", "Order Times"])
       sortedGroups.forEach((group) => {
         const names = Array.from(
           new Set(
@@ -311,13 +341,38 @@ export function AdminPanel({ user }: AdminPanelProps) {
           .map((entry) => new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
           .join("; ")
 
-        pushRow(["Summary", group.item, group.variant, group.orders.length, names, emails, phones, notesSummary, orderTimes])
+        const lineTotal = group.priceAll != null ? group.priceAll * group.orders.length : ""
+        pushRow([
+          "Summary",
+          group.item,
+          group.variant,
+          group.priceAll ?? "",
+          lineTotal,
+          group.orders.length,
+          names,
+          emails,
+          phones,
+          notesSummary,
+          orderTimes,
+        ])
       })
 
       csvLines.push("")
-      pushRow(["Section", "Item", "Variant", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
+      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
       sortedGroups.forEach((group) => {
-        pushRow(["Group Total", group.item, group.variant, group.orders.length, "", "", "", "", ""])
+        pushRow([
+          "Group Total",
+          group.item,
+          group.variant,
+          group.priceAll ?? "",
+          group.priceAll != null ? group.priceAll * group.orders.length : "",
+          group.orders.length,
+          "",
+          "",
+          "",
+          "",
+          "",
+        ])
 
         const sortedOrders = [...group.orders].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -329,6 +384,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
             "Order",
             group.item,
             group.variant,
+            group.priceAll ?? "",
+            group.priceAll ?? "",
             1,
             displayName,
             entry.user?.email ?? "",
@@ -371,6 +428,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
     const rowsHtml = orders
       .map((order) => {
         const createdAt = new Date(order.created_at).toLocaleString()
+        const priceAll = menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant))
         return [
           '        <tr>',
           '          <td>' + normalize(order.user?.name) + '</td>',
@@ -378,6 +436,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           '          <td>' + normalize(order.user?.phone) + '</td>',
           '          <td>' + normalize(order.item) + '</td>',
           '          <td>' + normalize(order.variant) + '</td>',
+          '          <td>' + normalize(priceAll ?? "") + '</td>',
           '          <td>' + normalize(order.notes) + '</td>',
           '          <td>' + createdAt + '</td>',
           '        </tr>',
@@ -387,13 +446,22 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
     const summaryItems = Object.entries(
       orders.reduce((acc, order) => {
-        const key = order.item + ' - ' + order.variant
+        const key = formatOrderLine(
+          order.item,
+          order.variant,
+          menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant)),
+        )
         acc[key] = (acc[key] || 0) + 1
         return acc
       }, {} as Record<string, number>),
     )
       .map(([key, total]) => '        <li>' + key + ': <strong>' + total + '</strong></li>')
       .join("\n")
+
+    const totalValue = orders.reduce((sum, order) => {
+      const priceAll = menuPriceMap.get(getMenuItemLookupKey(order.item, order.variant))
+      return sum + (typeof priceAll === "number" ? priceAll : 0)
+    }, 0)
 
     const documentHtml = [
       '<!DOCTYPE html>',
@@ -419,6 +487,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '    <div class="summary">',
       '      <span class="badge">' + orders.length + ' meals</span>',
       '      <span>Locked: <strong>' + (isLocked ? 'Yes' : 'No') + '</strong></span>',
+      (totalValue > 0 ? '      <span style="margin-left:12px">Estimated total: <strong>ALL ' + totalValue + '</strong></span>' : ''),
       '      <ul>',
       summaryItems,
       '      </ul>',
@@ -431,6 +500,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '          <th>Phone</th>',
       '          <th>Item</th>',
       '          <th>Variant</th>',
+      '          <th>Price (ALL)</th>',
       '          <th>Notes</th>',
       '          <th>Placed At</th>',
       '        </tr>',
@@ -664,11 +734,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
 
       <TimeframeSettings user={user} />
 
-      <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />\r\n\r\n      <AdminOrderInsights orders={orders} users={allUsers} />
+      <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />
+
+      <AdminOrderInsights orders={orders} menuItems={menuItems} users={allUsers} />
 
       <AdminUserManagement
         users={allUsers}
         orders={orders}
+        menuItems={menuItems}
         currentUserId={user.id}
         onRefresh={fetchAdminData}
         onManageOrder={handleManageUserOrder}
@@ -976,13 +1049,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
-
-
-
-
-
-
-
 
 
 

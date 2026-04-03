@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { User, Order } from "@/lib/types"
+import type { User, Order, MenuItem } from "@/lib/types"
+import { formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
 import { ShieldCheck, ShieldOff, UsersRound, Edit3, KeyRound, Trash2 } from "lucide-react"
 
 interface AdminUserManagementProps {
   users: User[]
   orders: Order[]
+  menuItems: MenuItem[]
   currentUserId: string
   onRefresh: () => Promise<void>
   onManageOrder: (userId: string, order?: Order) => void
@@ -27,7 +29,7 @@ type PendingAction = {
   action: "update" | "reset-password" | "delete-user"
 }
 
-export function AdminUserManagement({ users, orders, currentUserId, onRefresh, onManageOrder }: AdminUserManagementProps) {
+export function AdminUserManagement({ users, orders, menuItems, currentUserId, onRefresh, onManageOrder }: AdminUserManagementProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
 
@@ -164,6 +166,7 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
   }
 
   const sortedUsers = [...users].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
+  const menuPriceMap = new Map(menuItems.map((item) => [getMenuItemLookupKey(item.item, item.variant), item.price_all]))
 
   return (
     <Card>
@@ -212,7 +215,11 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
                 {currentOrder ? (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>
-                      {currentOrder.item} - {currentOrder.variant}
+                      {formatOrderLine(
+                        currentOrder.item,
+                        currentOrder.variant,
+                        menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
+                      )}
                     </span>
                     {currentOrder.notes && <span className="italic">"{currentOrder.notes}"</span>}
                     {currentOrder.locked && <Badge variant="outline">Locked</Badge>}

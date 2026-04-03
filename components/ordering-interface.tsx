@@ -19,7 +19,7 @@ import { AdminOrderInsights } from "@/components/admin-order-insights"
 import { ChatPanel } from "@/components/chat-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
-import { cn, formatLekPrice, formatMenuVariantLabel } from "@/lib/utils"
+import { cn, formatLekPrice, formatMenuVariantLabel, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -272,9 +272,18 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     () => menuItems.find((i) => i.item === selectedItem && i.variant === selectedVariant) ?? null,
     [menuItems, selectedItem, selectedVariant],
   )
+  const menuPriceMap = useMemo(
+    () => new Map(menuItems.map((item) => [getMenuItemLookupKey(item.item, item.variant), item.price_all])),
+    [menuItems],
+  )
+  const getOrderPriceLabel = useCallback(
+    (item: string, variant: string) => formatLekPrice(menuPriceMap.get(getMenuItemLookupKey(item, variant))),
+    [menuPriceMap],
+  )
   const selectedMenuPrice = formatLekPrice(selectedMenuItem?.price_all)
+  const currentOrderPriceLabel = currentOrder ? getOrderPriceLabel(currentOrder.item, currentOrder.variant) : null
 
-  const { orderSummary, topItemData } = useMemo(() => {
+  const orderSummary = useMemo(() => {
     const summaryMap = new Map<string, OrderSummary>()
 
     orders.forEach((orderItem) => {
@@ -287,14 +296,17 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       }
     })
 
-    const summaryList = Array.from(summaryMap.values()).sort((a, b) => b.count - a.count)
-    const chartData = summaryList.slice(0, 5).map((entry) => ({
-      label: entry.variant ? `${entry.item} (${entry.variant})` : entry.item,
-      value: entry.count,
-    }))
-
-    return { orderSummary: summaryList, topItemData: chartData }
+    return Array.from(summaryMap.values()).sort((a, b) => b.count - a.count)
   }, [orders])
+
+  const topItemData = useMemo(
+    () =>
+      orderSummary.slice(0, 5).map((entry) => ({
+        label: formatOrderLine(entry.item, entry.variant, menuPriceMap.get(getMenuItemLookupKey(entry.item, entry.variant))),
+        value: entry.count,
+      })),
+    [menuPriceMap, orderSummary],
+  )
 
   const rosterForInsights = useMemo(() => {
     const map = new Map<string, { id: string; name: string; email: string }>()
@@ -855,6 +867,16 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                         Window closes at <strong>{timeframe.endTime}</strong> — don't miss out
                       </motion.p>
                     )}
+                    {currentOrder && currentOrderPriceLabel && (
+                      <p className="text-sm text-muted-foreground">
+                        Current selection:{" "}
+                        {formatOrderLine(
+                          currentOrder.item,
+                          currentOrder.variant,
+                          menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
+                        )}
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {isInitialLoading ? (
@@ -1147,7 +1169,11 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                             </motion.span>
                             {summary.item} — {summary.variant}
                           </span>
-                          <Badge variant="secondary">x{summary.count}</Badge>
+                          <Badge variant="secondary">
+                            {getOrderPriceLabel(summary.item, summary.variant)
+                              ? `${getOrderPriceLabel(summary.item, summary.variant)} | x${summary.count}`
+                              : `x${summary.count}`}
+                          </Badge>
                         </motion.div>
                       ))}
                       {orderSummary.length === 0 && (
@@ -1176,6 +1202,9 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                               <div>
                                 <p className="font-medium">{order.user?.name}</p>
                                 <p className="text-muted-foreground">{order.item} — {order.variant}</p>
+                                {getOrderPriceLabel(order.item, order.variant) && (
+                                  <p className="text-xs text-muted-foreground">{getOrderPriceLabel(order.item, order.variant)}</p>
+                                )}
                                 {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
                               </div>
                             </div>
@@ -1276,10 +1305,15 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                                 <div>
                                   <p className="text-sm font-medium">{label}</p>
                                   {order ? (
+                                    <>
                                     <p className="text-sm text-muted-foreground">
                                       {getFoodEmoji(order.item)} {order.item} — {order.variant}
                                       {order.notes ? <span className="italic"> · "{order.notes}"</span> : null}
                                     </p>
+                                    {getOrderPriceLabel(order.item, order.variant) && (
+                                      <p className="text-xs text-muted-foreground">{getOrderPriceLabel(order.item, order.variant)}</p>
+                                    )}
+                                    </>
                                   ) : (
                                     <p className="text-sm text-muted-foreground italic">No order that week</p>
                                   )}
@@ -1304,7 +1338,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
 
           {user.role !== "admin" && (
             <motion.div variants={staggerItem}>
-              <AdminOrderInsights orders={orders} users={rosterForInsights} />
+              <AdminOrderInsights orders={orders} menuItems={menuItems} users={rosterForInsights} />
             </motion.div>
           )}
 
