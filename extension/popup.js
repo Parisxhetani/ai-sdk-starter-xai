@@ -9,6 +9,7 @@ const signInButton = document.getElementById("sign-in-button")
 const signOutButton = document.getElementById("sign-out-button")
 const orderForm = document.getElementById("order-form")
 const phoneInput = document.getElementById("phone-input")
+const cashAvailableInput = document.getElementById("cash-available-input")
 const itemSelect = document.getElementById("item-select")
 const variantSelect = document.getElementById("variant-select")
 const notesInput = document.getElementById("notes-input")
@@ -151,6 +152,9 @@ function handleSignedOut() {
   teamOrders = []
   emailInput.value = ""
   passwordInput.value = ""
+  phoneInput.value = ""
+  cashAvailableInput.value = ""
+  notesInput.value = ""
   hideStatus()
   showAuth()
   setLoading(false)
@@ -310,13 +314,13 @@ async function loadOrders() {
   const [{ data: orderData, error: orderError }, { data: teamData, error: teamError }] = await Promise.all([
     supabaseClient
       .from("orders")
-      .select("id, item, variant, notes, locked, friday_date")
+      .select("id, item, variant, notes, cash_available_all, locked, friday_date")
       .eq("user_id", activeUser.id)
       .eq("friday_date", fridayDate)
       .maybeSingle(),
     supabaseClient
       .from("orders")
-      .select("id, item, variant, notes, locked, user:users(name)")
+      .select("id, item, variant, notes, cash_available_all, locked, user:users(name)")
       .eq("friday_date", fridayDate)
       .order("created_at", { ascending: true })
   ])
@@ -332,6 +336,7 @@ function synchronizeMenu() {
   populateItems()
   populateVariants()
   notesInput.value = currentOrder?.notes || ""
+  cashAvailableInput.value = currentOrder?.cash_available_all > 0 ? String(currentOrder.cash_available_all) : ""
 }
 
 function populateItems() {
@@ -385,6 +390,7 @@ function refreshForm() {
     itemSelect.disabled = disabled
     variantSelect.disabled = disabled
     notesInput.disabled = disabled
+    cashAvailableInput.disabled = disabled
     if (locked) {
       showStatus("Orders are locked for this week.", "error", 4000)
     }
@@ -407,9 +413,13 @@ function updateSummary() {
   teamOrders.forEach((order) => {
     const li = document.createElement("li")
     const name = order.user?.name || "Unknown"
+    const cashLabel =
+      typeof order.cash_available_all === "number" && order.cash_available_all > 0
+        ? ` | Cash ALL ${order.cash_available_all}`
+        : ""
     li.textContent = `${name}: ${order.item}${order.variant ? ` (${order.variant})` : ""}${formatPrice(
       getMenuPrice(order.item, order.variant)
-    )}`
+    )}${cashLabel}`
     ordersListEl.appendChild(li)
   })
 }
@@ -467,8 +477,13 @@ orderForm.addEventListener("submit", async (event) => {
     const item = itemSelect.value
     const variant = variantSelect.value
     const notes = notesInput.value.trim()
+    const cashAvailableValue = cashAvailableInput.value.trim()
+    const cashAvailableAll = cashAvailableValue === "" ? 0 : Number(cashAvailableValue)
     if (!item || !variant) throw new Error("Pick a menu item and variant.")
     if (notes.length > 100) throw new Error("Notes must be 100 characters or fewer.")
+    if (!Number.isInteger(cashAvailableAll) || cashAvailableAll < 0) {
+      throw new Error("Cash today must be a whole number or left blank.")
+    }
 
     const fridayDate = formatFridayDate(getCurrentFriday())
     const payload = {
@@ -476,7 +491,8 @@ orderForm.addEventListener("submit", async (event) => {
       friday_date: fridayDate,
       item,
       variant,
-      notes: notes || null
+      notes: notes || null,
+      cash_available_all: cashAvailableAll
     }
 
     if (currentOrder) {

@@ -3,13 +3,14 @@
 import { useState, useEffect, useImperativeHandle, forwardRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { formatMenuVariantLabel, formatOrderLine } from "@/lib/utils"
+import { formatLekPrice, formatMenuVariantLabel, formatOrderLine } from "@/lib/utils"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { User, MenuItem, Order } from "@/lib/types"
 import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
@@ -41,6 +42,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [selectedItem, setSelectedItem] = useState("")
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
+  const [cashAvailableInput, setCashAvailableInput] = useState("")
 
   const activeMenuItems = useMemo(() => menuItems.filter((item) => item.active), [menuItems])
 
@@ -92,6 +94,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
     setSelectedItem("")
     setSelectedVariant("")
     setNotes("")
+    setCashAvailableInput("")
     setEditingOrder(null)
     setError(null)
     setSuccess(null)
@@ -105,6 +108,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       setSelectedItem(order.item)
       setSelectedVariant(order.variant)
       setNotes(order.notes || "")
+      setCashAvailableInput(order.cash_available_all > 0 ? String(order.cash_available_all) : "")
     }
     setShowOrderDialog(true)
   }
@@ -150,12 +154,20 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       return
     }
 
+    const normalizedCashAvailableAll = cashAvailableInput.trim() === "" ? 0 : Number(cashAvailableInput)
+    if (!Number.isInteger(normalizedCashAvailableAll) || normalizedCashAvailableAll < 0) {
+      setError("Cash today must be a whole number or left blank")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const payload = {
         user_id: selectedUserId,
         item: selectedItem,
         variant: selectedVariant,
         notes: notes.trim() || null,
+        cash_available_all: normalizedCashAvailableAll,
         friday_date: fridayDate,
       }
 
@@ -261,6 +273,9 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                       <p className="text-sm text-muted-foreground">
                         {formatOrderLine(order.item, order.variant, menuMatch?.price_all)}
                       </p>
+                      {order.cash_available_all > 0 && (
+                        <p className="text-xs text-muted-foreground">Cash today: {formatLekPrice(order.cash_available_all)}</p>
+                      )}
                       {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
                     </div>
                     <div className="flex items-center gap-2">
@@ -349,6 +364,23 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                     maxLength={100}
                   />
                   <p className="text-xs text-muted-foreground">{notes.length}/100 characters</p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="cash-available-input">Cash You Have Today (ALL, optional)</Label>
+                  <Input
+                    id="cash-available-input"
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    placeholder="e.g. 1000"
+                    value={cashAvailableInput}
+                    onChange={(e) => setCashAvailableInput(e.target.value.replace(/[^\d]/g, ""))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This feeds the team cash planner and change optimizer.
+                  </p>
                 </div>
 
                 {error && (

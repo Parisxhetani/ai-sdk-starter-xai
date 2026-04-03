@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   item TEXT NOT NULL,
   variant TEXT NOT NULL,
   notes TEXT,
+  cash_available_all INTEGER NOT NULL DEFAULT 0 CHECK (cash_available_all >= 0),
   locked BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

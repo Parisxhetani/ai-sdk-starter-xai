@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
+import { CashPlannerCard } from "@/components/cash-planner-card"
 import { ChatPanel } from "@/components/chat-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
@@ -248,6 +249,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
   const [phone, setPhone] = useState(user.phone || "")
+  const [cashAvailableInput, setCashAvailableInput] = useState("")
   const [fridayDate, setFridayDate] = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
@@ -282,6 +284,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   )
   const selectedMenuPrice = formatLekPrice(selectedMenuItem?.price_all)
   const currentOrderPriceLabel = currentOrder ? getOrderPriceLabel(currentOrder.item, currentOrder.variant) : null
+  const currentOrderCashLabel = currentOrder ? formatLekPrice(currentOrder.cash_available_all) : null
 
   const orderSummary = useMemo(() => {
     const summaryMap = new Map<string, OrderSummary>()
@@ -416,6 +419,9 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         setSelectedItem(currentOrderData.item)
         setSelectedVariant(currentOrderData.variant)
         setNotes(currentOrderData.notes || "")
+        setCashAvailableInput(currentOrderData.cash_available_all > 0 ? String(currentOrderData.cash_available_all) : "")
+      } else {
+        setCashAvailableInput("")
       }
     } catch (e) {
       console.error("Error fetching data:", e)
@@ -469,6 +475,13 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       return
     }
 
+    const normalizedCashAvailableAll = cashAvailableInput.trim() === "" ? 0 : Number(cashAvailableInput)
+    if (!Number.isInteger(normalizedCashAvailableAll) || normalizedCashAvailableAll < 0) {
+      toast.error("Cash today must be a whole number or left blank")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const orderData = {
         user_id: user.id,
@@ -476,6 +489,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         item: selectedItem,
         variant: selectedVariant,
         notes: notes.trim() || null,
+        cash_available_all: normalizedCashAvailableAll,
       }
       if (currentOrder) {
         const { error } = await supabase.from("orders").update(orderData).eq("id", currentOrder.id)
@@ -530,6 +544,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       setSelectedItem("")
       setSelectedVariant("")
       setNotes("")
+      setCashAvailableInput("")
       toast.success("Order cancelled. Changed your mind? You can re-order anytime before noon.")
       await fetchData(fridayDate)
     } catch (e) {
@@ -868,14 +883,17 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                       </motion.p>
                     )}
                     {currentOrder && currentOrderPriceLabel && (
-                      <p className="text-sm text-muted-foreground">
-                        Current selection:{" "}
-                        {formatOrderLine(
-                          currentOrder.item,
-                          currentOrder.variant,
-                          menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
-                        )}
-                      </p>
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <p>
+                          Current selection:{" "}
+                          {formatOrderLine(
+                            currentOrder.item,
+                            currentOrder.variant,
+                            menuPriceMap.get(getMenuItemLookupKey(currentOrder.item, currentOrder.variant)),
+                          )}
+                        </p>
+                        {currentOrderCashLabel && <p>Cash today: {currentOrderCashLabel}</p>}
+                      </div>
                     )}
                   </CardHeader>
                   <CardContent>
@@ -983,6 +1001,24 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                             onChange={(e) => setPhone(e.target.value)}
                             disabled={!canOrder || isLoading || isDeleting}
                           />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="cash-available">Cash You Have Today (ALL, optional)</Label>
+                          <Input
+                            id="cash-available"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            placeholder="e.g. 1000"
+                            value={cashAvailableInput}
+                            onChange={(e) => setCashAvailableInput(e.target.value.replace(/[^\d]/g, ""))}
+                            disabled={!canOrder || isLoading || isDeleting}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Used by the cash planner to find the best payment combo and change split for the team.
+                          </p>
                         </div>
 
                         <motion.div whileHover={canOrder ? { scale: 1.02 } : {}} whileTap={canOrder ? { scale: 0.98 } : {}}>
@@ -1237,6 +1273,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           </div>
 
           {/* ── Order History ─────────────────────────────────────── */}
+          <motion.div variants={staggerItem}>
+            <CashPlannerCard orders={orders} menuItems={menuItems} />
+          </motion.div>
+
           <motion.div variants={staggerItem}>
             <Card className="border border-white/60 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 overflow-hidden">
               <CardHeader

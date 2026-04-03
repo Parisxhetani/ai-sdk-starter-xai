@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { TimeframeSettings } from "@/components/timeframe-settings"
 import { AdminOrderManagement } from "@/components/admin-order-management"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
+import { CashPlannerCard } from "@/components/cash-planner-card"
 import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
@@ -318,7 +319,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       ])
       csvLines.push("")
 
-      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Quantity", "Names", "Emails", "Phones", "Notes", "Order Times"])
+      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Cash Entered (ALL)", "Quantity", "Names", "Emails", "Phones", "Notes", "Order Times"])
       sortedGroups.forEach((group) => {
         const names = Array.from(
           new Set(
@@ -342,12 +343,14 @@ export function AdminPanel({ user }: AdminPanelProps) {
           .join("; ")
 
         const lineTotal = group.priceAll != null ? group.priceAll * group.orders.length : ""
+        const groupCashTotal = group.orders.reduce((sum, entry) => sum + (entry.cash_available_all || 0), 0)
         pushRow([
           "Summary",
           group.item,
           group.variant,
           group.priceAll ?? "",
           lineTotal,
+          groupCashTotal,
           group.orders.length,
           names,
           emails,
@@ -358,7 +361,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       })
 
       csvLines.push("")
-      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
+      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Cash Available (ALL)", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
       sortedGroups.forEach((group) => {
         pushRow([
           "Group Total",
@@ -366,6 +369,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           group.variant,
           group.priceAll ?? "",
           group.priceAll != null ? group.priceAll * group.orders.length : "",
+          group.orders.reduce((sum, entry) => sum + (entry.cash_available_all || 0), 0),
           group.orders.length,
           "",
           "",
@@ -386,6 +390,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
             group.variant,
             group.priceAll ?? "",
             group.priceAll ?? "",
+            entry.cash_available_all || 0,
             1,
             displayName,
             entry.user?.email ?? "",
@@ -437,6 +442,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           '          <td>' + normalize(order.item) + '</td>',
           '          <td>' + normalize(order.variant) + '</td>',
           '          <td>' + normalize(priceAll ?? "") + '</td>',
+          '          <td>' + normalize(order.cash_available_all ?? "") + '</td>',
           '          <td>' + normalize(order.notes) + '</td>',
           '          <td>' + createdAt + '</td>',
           '        </tr>',
@@ -501,6 +507,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '          <th>Item</th>',
       '          <th>Variant</th>',
       '          <th>Price (ALL)</th>',
+      '          <th>Cash Today (ALL)</th>',
       '          <th>Notes</th>',
       '          <th>Placed At</th>',
       '        </tr>',
@@ -737,6 +744,8 @@ export function AdminPanel({ user }: AdminPanelProps) {
       <AdminOrderManagement ref={orderManagementRef} user={user} onChange={fetchAdminData} />
 
       <AdminOrderInsights orders={orders} menuItems={menuItems} users={allUsers} />
+
+      <CashPlannerCard orders={orders} menuItems={menuItems} title="Team Cash Planner" />
 
       <AdminUserManagement
         users={allUsers}
@@ -1049,8 +1058,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
-
-
 
 
 

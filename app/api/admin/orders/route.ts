@@ -64,6 +64,19 @@ async function requireAdmin(request: NextRequest) {
   return { admin, userId: user.id }
 }
 
+function normalizeCashAvailableAll(value: unknown): number | null {
+  if (value == null || value === "") {
+    return 0
+  }
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null
+  }
+
+  return parsed
+}
+
 export async function GET(request: NextRequest) {
   try {
     const result = await requireAdmin(request)
@@ -113,10 +126,15 @@ export async function POST(request: NextRequest) {
 
     const { admin } = result
 
-    const { user_id, item, variant, notes, friday_date } = await request.json()
+    const { user_id, item, variant, notes, friday_date, cash_available_all } = await request.json()
 
     if (!user_id || !item || !variant) {
       return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
+    }
+
+    const normalizedCashAvailableAll = normalizeCashAvailableAll(cash_available_all)
+    if (normalizedCashAvailableAll == null) {
+      return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
     }
 
     const fridayDate = friday_date || (await getCurrentOrderDateString(admin))
@@ -128,6 +146,7 @@ export async function POST(request: NextRequest) {
         item,
         variant,
         notes: notes?.trim() || null,
+        cash_available_all: normalizedCashAvailableAll,
         friday_date: fridayDate,
       })
       .select("*, user:users(id, name, email, phone)")
@@ -156,6 +175,14 @@ export async function PATCH(request: NextRequest) {
 
     if (!id || !updates) {
       return NextResponse.json({ error: "id and updates are required" }, { status: 400 })
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, "cash_available_all")) {
+      const normalizedCashAvailableAll = normalizeCashAvailableAll(updates.cash_available_all)
+      if (normalizedCashAvailableAll == null) {
+        return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
+      }
+      updates.cash_available_all = normalizedCashAvailableAll
     }
 
     const { data, error } = await admin

@@ -6,6 +6,7 @@ export const createOrderSchema = z.object({
   item: z.string().min(1, "Item is required").max(100, "Item name too long"),
   variant: z.string().min(1, "Variant is required").max(100, "Variant name too long"),
   notes: z.string().max(100, "Notes must be 100 characters or less").optional().nullable(),
+  cash_available_all: z.number().int("Cash amount must be a whole number").min(0, "Cash amount cannot be negative").default(0),
 })
 
 export const updateOrderSchema = createOrderSchema.partial().extend({

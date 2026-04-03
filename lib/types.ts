@@ -25,6 +25,7 @@ export interface Order {
   item: string
   variant: string
   notes?: string
+  cash_available_all: number
   locked: boolean
   created_at: string
   updated_at: string
