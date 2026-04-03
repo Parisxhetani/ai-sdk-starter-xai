@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { User, Order } from "@/lib/types"
-import { ShieldCheck, ShieldOff, UsersRound, Edit3 } from "lucide-react"
+import { ShieldCheck, ShieldOff, UsersRound, Edit3, KeyRound, Trash2 } from "lucide-react"
 
 interface AdminUserManagementProps {
   users: User[]
@@ -22,20 +22,25 @@ interface FeedbackState {
   message: string
 }
 
+type PendingAction = {
+  userId: string
+  action: "update" | "reset-password" | "delete-user"
+}
+
 export function AdminUserManagement({ users, orders, currentUserId, onRefresh, onManageOrder }: AdminUserManagementProps) {
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
 
   useEffect(() => {
     if (!feedback) {
       return
     }
-    const timeout = window.setTimeout(() => setFeedback(null), 4000)
+    const timeout = window.setTimeout(() => setFeedback(null), 5000)
     return () => window.clearTimeout(timeout)
   }, [feedback])
 
   const handleUpdate = async (userId: string, updates: Partial<User>, successMessage: string) => {
-    setUpdatingUserId(userId)
+    setPendingAction({ userId, action: "update" })
     try {
       const response = await fetch("/api/admin/users", {
         method: "PATCH",
@@ -59,7 +64,7 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
         message: error instanceof Error ? error.message : "Failed to update user",
       })
     } finally {
-      setUpdatingUserId(null)
+      setPendingAction(null)
     }
   }
 
@@ -76,7 +81,89 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
     await handleUpdate(user.id, { whitelisted }, `${whitelisted ? "Enabled" : "Disabled"} access for ${user.name}.`)
   }
 
-  const sortedUsers = [...users].sort((a, b) => a.name.localeCompare(b.name))
+  const handleResetPassword = async (user: User) => {
+    if (user.id === currentUserId) {
+      setFeedback({ type: "error", message: "Use the regular reset flow for your own password." })
+      return
+    }
+
+    const shouldReset = window.confirm(
+      `Reset ${user.name}'s password to the default password !Tirana1?\n\nThey should change it again after signing in.`,
+    )
+    if (!shouldReset) return
+
+    setPendingAction({ userId: user.id, action: "reset-password" })
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: user.id, action: "reset_password" }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset password")
+      }
+
+      setFeedback({
+        type: "success",
+        message: `Reset ${user.name}'s password to ${data.defaultPassword ?? "!Tirana1"}.`,
+      })
+      await onRefresh()
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to reset password",
+      })
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  const handleDeleteUser = async (user: User) => {
+    if (user.id === currentUserId) {
+      setFeedback({ type: "error", message: "You cannot delete your own account from this screen." })
+      return
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete ${user.name} (${user.email})?\n\nThis removes their account, orders, and related records.`,
+    )
+    if (!shouldDelete) return
+
+    setPendingAction({ userId: user.id, action: "delete-user" })
+
+    try {
+      const response = await fetch(`/api/admin/users?userId=${encodeURIComponent(user.id)}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete user")
+      }
+
+      setFeedback({
+        type: "success",
+        message: `Deleted ${user.name}'s account.`,
+      })
+      await onRefresh()
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to delete user",
+      })
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  const sortedUsers = [...users].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
 
   return (
     <Card>
@@ -94,14 +181,13 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
           </Alert>
         )}
 
-        {sortedUsers.length === 0 && (
-          <p className="text-sm text-muted-foreground">No users available.</p>
-        )}
+        {sortedUsers.length === 0 && <p className="text-sm text-muted-foreground">No users available.</p>}
 
         {sortedUsers.map((user) => {
           const currentOrder = orders.find((order) => order.user_id === user.id)
           const isSelf = user.id === currentUserId
-          const isUpdating = updatingUserId === user.id
+          const isPendingForUser = pendingAction?.userId === user.id
+          const activeAction = isPendingForUser ? pendingAction?.action : null
           const roleActionLabel = user.role === "admin" ? "Set as Member" : "Make Admin"
           const manageOrderLabel = currentOrder ? "Manage Order" : "Create Order"
 
@@ -113,17 +199,20 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-base">{user.name}</span>
-                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? "Admin" : "Member"}</Badge>
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                    {user.role === "admin" ? "Admin" : "Member"}
+                  </Badge>
+                  {isSelf && <Badge variant="outline">You</Badge>}
                   {!user.whitelisted && <Badge variant="outline">Not Whitelisted</Badge>}
                 </div>
-                <div className="text-sm text-muted-foreground space-y-1">
+                <div className="space-y-1 text-sm text-muted-foreground">
                   <p>{user.email}</p>
                   {user.phone && <p>{user.phone}</p>}
                 </div>
                 {currentOrder ? (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>
-                      {currentOrder.item} � {currentOrder.variant}
+                      {currentOrder.item} - {currentOrder.variant}
                     </span>
                     {currentOrder.notes && <span className="italic">"{currentOrder.notes}"</span>}
                     {currentOrder.locked && <Badge variant="outline">Locked</Badge>}
@@ -138,29 +227,54 @@ export function AdminUserManagement({ users, orders, currentUserId, onRefresh, o
                   <Switch
                     checked={user.whitelisted}
                     onCheckedChange={(value) => handleWhitelistToggle(user, value)}
-                    disabled={isUpdating}
+                    disabled={isPendingForUser}
                   />
                   <span>{user.whitelisted ? "Whitelisted" : "Blocked"}</span>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRoleToggle(user)}
-                  disabled={isUpdating || (isSelf && user.role === "admin")}
-                  className="min-w-[140px]"
-                >
-                  {isUpdating ? "Updating..." : roleActionLabel}
-                </Button>
+                <div className="flex flex-wrap gap-2 md:justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRoleToggle(user)}
+                    disabled={isPendingForUser || (isSelf && user.role === "admin")}
+                    className="min-w-[140px]"
+                  >
+                    {activeAction === "update" ? "Updating..." : roleActionLabel}
+                  </Button>
 
-                <Button
-                  size="sm"
-                  onClick={() => onManageOrder(user.id, currentOrder)}
-                  className="min-w-[140px]"
-                >
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  {manageOrderLabel}
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResetPassword(user)}
+                    disabled={isPendingForUser || isSelf}
+                    className="min-w-[140px]"
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    {activeAction === "reset-password" ? "Resetting..." : "Reset Password"}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={() => onManageOrder(user.id, currentOrder)}
+                    disabled={isPendingForUser}
+                    className="min-w-[140px]"
+                  >
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    {manageOrderLabel}
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteUser(user)}
+                    disabled={isPendingForUser || isSelf}
+                    className="min-w-[140px]"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {activeAction === "delete-user" ? "Deleting..." : "Delete User"}
+                  </Button>
+                </div>
               </div>
             </div>
           )
