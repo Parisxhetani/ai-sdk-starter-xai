@@ -1,36 +1,71 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type React from "react"
+import type { Metadata } from "next"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
+import { Analytics } from "@vercel/analytics/next"
+import { AuthProvider } from "@/components/auth-provider"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Suspense } from "react"
+import { Toaster } from "sonner"
+import "./globals.css"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const TITLE = "Friday Tony's Orders"
+const DESCRIPTION = "Team lunch ordering system for Tony's restaurant in Tirana"
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
 
 export const metadata: Metadata = {
-  title: "Vercel x xAI Chatbot",
-  description:
-    "This starter project uses xAI with the AI SDK via the Vercel Marketplace",
-    generator: 'v0.app'
-};
+  title: TITLE,
+  description: DESCRIPTION,
+  generator: "v0.app",
+  metadataBase: new URL(APP_URL),
+  icons: {
+    icon: [
+      { url: "/brand/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: "/brand/favicon-32x32.png",
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [
+      {
+        url: "/brand/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "Facilization Friday orders badge",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/brand/icon-512.png"],
+  },
+  other: {
+    "PrintStyles": "/styles/print.css",
+  },
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+        <ThemeProvider>
+          <AuthProvider>
+            <Suspense>{children}</Suspense>
+          </AuthProvider>
+        </ThemeProvider>
+        <Toaster richColors position="top-right" />
+        <Analytics />
       </body>
     </html>
-  );
+  )
 }
