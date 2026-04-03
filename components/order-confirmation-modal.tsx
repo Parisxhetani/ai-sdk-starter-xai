@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { formatLekPrice, formatMenuVariantLabel } from "@/lib/utils"
 import type { MenuItem } from "@/lib/types"
 import { UtensilsCrossed, Clock, AlertCircle } from "lucide-react"
 
@@ -33,6 +34,7 @@ export function OrderConfirmationModal({
   isUpdating,
 }: OrderConfirmationModalProps) {
   const [confirmed, setConfirmed] = useState(false)
+  const priceLabel = formatLekPrice(selectedItem?.price_all)
 
   const handleConfirm = () => {
     setConfirmed(true)
@@ -64,10 +66,12 @@ export function OrderConfirmationModal({
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <p className="font-semibold">{selectedItem?.item}</p>
-                <p className="text-sm text-muted-foreground">{selectedItem?.variant}</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedItem ? formatMenuVariantLabel(selectedItem.variant, selectedItem.price_all) : null}
+                </p>
               </div>
               <Badge variant="secondary" className="shrink-0">
-                1 order
+                {priceLabel ?? "1 order"}
               </Badge>
             </div>
             {notes && (

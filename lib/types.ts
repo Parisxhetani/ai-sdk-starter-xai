@@ -13,6 +13,7 @@ export interface MenuItem {
   id: string
   item: string
   variant: string
+  price_all?: number | null
   active: boolean
   created_at: string
 }
@@ -63,4 +64,3 @@ export interface OrderSummary {
   variant: string
   count: number
 }
-

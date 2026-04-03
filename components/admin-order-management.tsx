@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { formatLekPrice, formatMenuVariantLabel } from "@/lib/utils"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import type { User, MenuItem, Order } from "@/lib/types"
 import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
@@ -244,32 +245,38 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
           <div>
             <h4 className="mb-2 font-semibold">Current Orders ({orders.length})</h4>
             <div className="space-y-2">
-              {orders.map((order) => (
-                <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{order.user?.name || order.user?.email}</p>
-                      {order.locked && (
-                        <Badge variant="destructive" className="text-xs">
-                          Locked
-                        </Badge>
-                      )}
+              {orders.map((order) => {
+                const menuMatch = menuItems.find((item) => item.item === order.item && item.variant === order.variant)
+                const priceLabel = formatLekPrice(menuMatch?.price_all)
+
+                return (
+                  <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{order.user?.name || order.user?.email}</p>
+                        {order.locked && (
+                          <Badge variant="destructive" className="text-xs">
+                            Locked
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {order.item} - {order.variant}
+                        {priceLabel ? ` (${priceLabel})` : ""}
+                      </p>
+                      {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {order.item} - {order.variant}
-                    </p>
-                    {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleOpenDialog(order)} disabled={order.locked}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteOrder(order)} disabled={order.locked}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleOpenDialog(order)} disabled={order.locked}>
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDeleteOrder(order)} disabled={order.locked}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
               {orders.length === 0 && <p className="text-sm text-muted-foreground">No orders yet</p>}
             </div>
           </div>
@@ -328,7 +335,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                     <SelectContent className="bg-background text-foreground border border-border">
                       {availableVariants.map((item) => (
                         <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item.id} value={item.variant}>
-                          {item.variant}
+                          {formatMenuVariantLabel(item.variant, item.price_all)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -378,4 +385,3 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
 })
 
 AdminOrderManagement.displayName = "AdminOrderManagement"
-

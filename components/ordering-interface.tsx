@@ -19,7 +19,7 @@ import { AdminOrderInsights } from "@/components/admin-order-insights"
 import { ChatPanel } from "@/components/chat-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
-import { cn } from "@/lib/utils"
+import { cn, formatLekPrice, formatMenuVariantLabel } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -268,6 +268,11 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   }, [])
 
   const availableVariants = menuItems.filter((i) => i.item === selectedItem && i.active)
+  const selectedMenuItem = useMemo(
+    () => menuItems.find((i) => i.item === selectedItem && i.variant === selectedVariant) ?? null,
+    [menuItems, selectedItem, selectedVariant],
+  )
+  const selectedMenuPrice = formatLekPrice(selectedMenuItem?.price_all)
 
   const { orderSummary, topItemData } = useMemo(() => {
     const summaryMap = new Map<string, OrderSummary>()
@@ -912,11 +917,12 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                                 <SelectContent className="border border-border/60 bg-white/80 text-foreground backdrop-blur-xl dark:bg-white/10">
                                   {availableVariants.map((item) => (
                                     <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item.id} value={item.variant}>
-                                      {item.variant}
+                                      {formatMenuVariantLabel(item.variant, item.price_all)}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {selectedMenuPrice && <p className="text-xs text-muted-foreground">Current price: {selectedMenuPrice}</p>}
                             </motion.div>
                           )}
                         </AnimatePresence>

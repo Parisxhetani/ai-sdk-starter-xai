@@ -18,6 +18,7 @@ import type { AdminOrderManagementHandle } from "@/components/admin-order-manage
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
+import { formatLekPrice } from "@/lib/utils"
 import type { Order, Event, MenuItem, User } from "@/lib/types"
 import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle } from "lucide-react"
 
@@ -863,28 +864,33 @@ export function AdminPanel({ user }: AdminPanelProps) {
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {menuItems
                     .filter((item) => item.item === itemName)
-                    .map((menuItem) => (
-                      <div key={menuItem.id} className="flex items-center justify-between p-2 border rounded">
-                        <span className={menuItem.active ? "" : "text-muted-foreground line-through"}>
-                          {menuItem.variant}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Switch
-                            className="data-[state=checked]:bg-primary"
-                            checked={menuItem.active}
-                            onCheckedChange={() => toggleMenuItem(menuItem.id, menuItem.active)}
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDeleteMenuItem(menuItem.id, menuItem.item, menuItem.variant)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                    .map((menuItem) => {
+                      const priceLabel = formatLekPrice(menuItem.price_all)
+
+                      return (
+                        <div key={menuItem.id} className="flex items-center justify-between p-2 border rounded">
+                          <div className={menuItem.active ? "" : "text-muted-foreground line-through"}>
+                            <p>{menuItem.variant}</p>
+                            {priceLabel && <p className="text-xs text-muted-foreground">{priceLabel}</p>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Switch
+                              className="data-[state=checked]:bg-primary"
+                              checked={menuItem.active}
+                              onCheckedChange={() => toggleMenuItem(menuItem.id, menuItem.active)}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteMenuItem(menuItem.id, menuItem.item, menuItem.variant)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                 </div>
               </div>
             ))}
@@ -970,10 +976,6 @@ export function AdminPanel({ user }: AdminPanelProps) {
     </div>
   )
 }
-
-
-
-
 
 
 

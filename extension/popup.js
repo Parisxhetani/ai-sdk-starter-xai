@@ -31,6 +31,11 @@ const DEFAULT_START = "09:00"
 const DEFAULT_END = "12:30"
 const DEFAULT_DAY = 5
 
+function formatPrice(priceAll) {
+  if (typeof priceAll !== "number" || Number.isNaN(priceAll) || priceAll <= 0) return ""
+  return ` - ALL ${priceAll}`
+}
+
 function log(...args) {
   if (typeof DEBUG_LOGGING !== "undefined" && DEBUG_LOGGING) {
     console.log("[Tony Extension]", ...args)
@@ -285,7 +290,7 @@ async function loadProfile() {
 async function loadMenu() {
   const { data, error } = await supabaseClient
     .from("menu_items")
-    .select("id, item, variant, active")
+    .select("*")
     .eq("active", true)
     .order("item", { ascending: true })
     .order("variant", { ascending: true })
@@ -349,7 +354,7 @@ function populateVariants() {
   variants.forEach((entry) => {
     const option = document.createElement("option")
     option.value = entry.variant
-    option.textContent = entry.variant || "Standard"
+    option.textContent = `${entry.variant || "Standard"}${formatPrice(entry.price_all)}`
     variantSelect.appendChild(option)
   })
 
@@ -515,5 +520,3 @@ init().catch((err) => {
   showStatus(err.message || "Failed to initialize extension")
   setLoading(false)
 })
-
-
