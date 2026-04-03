@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
@@ -17,16 +17,15 @@ interface ApiResetResponse {
   error?: string
 }
 
-type ResetMode = "legacy" | "invalid"
+type ResetMode = "checking" | "legacy" | "supabase" | "invalid"
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createClient(), [])
 
   const token = searchParams.get("token")
-
-  const mode: ResetMode = token ? "legacy" : "invalid"
+  const [mode, setMode] = useState<ResetMode>(token ? "legacy" : "checking")
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -34,10 +33,65 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  useEffect(() => {
+    if (token) {
+      setMode("legacy")
+      return
+    }
+
+    let isMounted = true
+    const hashParams =
+      typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.hash.replace(/^#/, ""))
+    const authError = searchParams.get("error_description") || hashParams.get("error_description")
+    const hasCallbackParams =
+      searchParams.has("code") ||
+      searchParams.get("type") === "recovery" ||
+      hashParams.has("access_token") ||
+      hashParams.get("type") === "recovery"
+
+    if (authError) {
+      setError(authError)
+      setMode("invalid")
+      return
+    }
+
+    const finish = (nextMode: ResetMode) => {
+      if (!isMounted) return
+      setMode(nextMode)
+    }
+
+    const fallbackTimer = window.setTimeout(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      finish(session?.user ? "supabase" : "invalid")
+    }, hasCallbackParams ? 1500 : 300)
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session?.user)) {
+        window.clearTimeout(fallbackTimer)
+        finish("supabase")
+      }
+    })
+
+    return () => {
+      isMounted = false
+      window.clearTimeout(fallbackTimer)
+      subscription.unsubscribe()
+    }
+  }, [searchParams, supabase, token])
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!token) {
+    if (mode === "checking") {
+      return
+    }
+
+    if (mode === "invalid") {
       setError("Reset link is invalid. Request a new one.")
       return
     }
@@ -57,14 +111,23 @@ export default function ResetPasswordPage() {
     setStatus(null)
 
     try {
-      const response = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      })
-      const data = (await response.json()) as ApiResetResponse
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to reset password")
+      if (mode === "legacy") {
+        const response = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password }),
+        })
+        const data = (await response.json()) as ApiResetResponse
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to reset password")
+        }
+      } else {
+        const { error: updateError } = await supabase.auth.updateUser({ password })
+        if (updateError) {
+          throw updateError
+        }
+
+        await supabase.auth.signOut()
       }
 
       setStatus("Password updated! You can now sign in with your new password.")
@@ -78,7 +141,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  const showForm = mode === "legacy"
+  const showForm = mode === "legacy" || mode === "supabase"
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center p-6">
@@ -90,13 +153,21 @@ export default function ResetPasswordPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Reset your password</CardTitle>
             <CardDescription>
-              {showForm
-                ? "Choose a new password you won't forget this time."
-                : "The reset link is invalid or has expired. Request a new one below."}
+              {mode === "checking"
+                ? "We're verifying your reset link before showing the form."
+                : showForm
+                  ? "Choose a new password you won't forget this time."
+                  : "The reset link is invalid or has expired. Request a new one below."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!showForm ? (
+            {mode === "checking" ? (
+              <div className="space-y-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Verifying your recovery link. This usually takes a second.
+                </p>
+              </div>
+            ) : !showForm ? (
               <div className="space-y-4 text-center">
                 <p className="text-sm text-muted-foreground">
                   Looks like this link can't be used anymore. You can request another email with a fresh reset link.
@@ -147,6 +218,11 @@ export default function ResetPasswordPage() {
                   {isSubmitting ? "Updating password..." : "Update password"}
                 </Button>
               </form>
+            )}
+            {error && !showForm && mode !== "checking" && (
+              <p className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+                {error}
+              </p>
             )}
             <div className="mt-6 text-center text-sm">
               <Link href="/auth/login" className="underline underline-offset-4">

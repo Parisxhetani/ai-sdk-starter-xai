@@ -48,9 +48,10 @@ ORDER_REMINDER_FROM_EMAIL="Lunch Bot <lunch@example.com>"
 
 1. In Supabase Dashboard > Authentication > Email Templates, customize the *Reset Password* template so it matches your branding.
 2. In Supabase Dashboard > Authentication > Redirect URLs, add https://your-production-domain/auth/reset-password and http://localhost:3000/auth/reset-password.
-3. (Optional) Configure SMTP credentials under Authentication > SMTP Settings for higher send limits and reliability.
-4. Ensure the SQL migrations in scripts/005_password_reset_tokens.sql and scripts/006_chat_messages.sql have been applied to your Supabase database.
-5. Deploy with the environment variables above so reset links point to the right domain.
+3. Keep the reset email linked to Supabase's confirmation URL so the `redirectTo` value from code is preserved. Avoid hardcoding the site root in the template.
+4. (Optional) Configure SMTP credentials under Authentication > SMTP Settings for higher send limits and reliability.
+5. Ensure the SQL migrations in scripts/005_password_reset_tokens.sql and scripts/006_chat_messages.sql have been applied to your Supabase database.
+6. Deploy with the environment variables above so reset links point to the right domain.
 
 ## Setup Instructions
 
@@ -114,4 +115,3 @@ npm run dev
 ```
 
 Database migrations are handled through the SQL scripts in the `scripts/` folder.
-

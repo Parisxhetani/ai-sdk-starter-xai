@@ -35,6 +35,10 @@ function createAdmin() {
   return createAdminClient(url, serviceRoleKey)
 }
 
+function buildResetPageUrl(baseUrl: string) {
+  return `${baseUrl}/auth/reset-password`
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
@@ -59,18 +63,7 @@ export async function POST(request: NextRequest) {
       .eq("email", normalizedEmail)
       .maybeSingle()
 
-    let userId = userRow?.id ?? null
-
-    if (!userId) {
-      const { data: listData, error: listError } = await admin.auth.admin.listUsers({
-        email: normalizedEmail,
-        perPage: 1,
-      })
-      if (listError) {
-        console.error("Supabase admin listUsers error:", listError.message)
-      }
-      userId = listData?.users?.[0]?.id ?? null
-    }
+    const userId = userRow?.id ?? null
 
     if (userId) {
       const { error: insertError } = await admin.from("password_reset_tokens").insert({
@@ -83,11 +76,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const redirectTo = `${redirectBase}/auth/reset-password?token=${token}`
+    const legacyResetUrl = `${buildResetPageUrl(redirectBase)}?token=${token}`
+    const redirectTo = buildResetPageUrl(redirectBase)
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo,
-      expiresIn: expiresInMinutes * 60,
     })
 
     if (resetError) {
@@ -102,6 +95,7 @@ export async function POST(request: NextRequest) {
         payload: {
           email: normalizedEmail,
           redirect_to: redirectTo,
+          legacy_reset_url: legacyResetUrl,
           provider: "supabase",
           expires_in_minutes: expiresInMinutes,
         },
@@ -113,6 +107,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: SUCCESS_MESSAGE,
+      resetUrl: process.env.NODE_ENV !== "production" ? legacyResetUrl : undefined,
     })
   } catch (error) {
     console.error("Password reset request error:", error)

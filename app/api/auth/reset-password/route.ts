@@ -1,5 +1,4 @@
-﻿import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 function createAdmin() {
@@ -25,14 +24,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
     }
 
-    const supabase = await createClient()
     const admin = createAdmin()
 
     const { data: resetToken } = await admin
       .from("password_reset_tokens")
-      .select(
-        `id, user_id, expires_at, used, user:users(id, email, name)`
-      )
+      .select("id, user_id, expires_at, used, user:users(id, email, name)")
       .eq("token", token)
       .eq("used", false)
       .maybeSingle()
@@ -45,6 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Reset token has expired" }, { status: 400 })
     }
 
+    const resetUser = Array.isArray(resetToken.user) ? resetToken.user[0] : resetToken.user
     const { error: updateError } = await admin.auth.admin.updateUserById(resetToken.user_id, { password })
 
     if (updateError) {
@@ -58,7 +55,7 @@ export async function POST(request: NextRequest) {
       type: "password_reset_completed",
       user_id: resetToken.user_id,
       payload: {
-        email: resetToken.user?.email,
+        email: resetUser?.email,
         reset_token_id: resetToken.id,
       },
     })
