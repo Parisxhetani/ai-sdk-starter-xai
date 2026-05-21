@@ -18,10 +18,11 @@ import { CashPlannerCard } from "@/components/cash-planner-card"
 import type { AdminOrderManagementHandle } from "@/components/admin-order-management"
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
+import { TeamManagement } from "@/components/team-management"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import { formatLekPrice, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
-import type { Order, Event, MenuItem, User } from "@/lib/types"
-import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle } from "lucide-react"
+import type { Order, Event, MenuItem, User, Team } from "@/lib/types"
+import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle, Shield } from "lucide-react"
 
 function getFriendlyOrderDate(orderDate: string | null): string {
   if (!orderDate) return "këtë javë"
@@ -111,6 +112,10 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [newItemName, setNewItemName] = useState("")
   const [newVariantName, setNewVariantName] = useState("")
   const [isAddingMenuItem, setIsAddingMenuItem] = useState(false)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(
+    user.role === "admin" ? user.team_id : user.team_admin_for ?? user.team_id,
+  )
 
   const orderManagementRef = useRef<AdminOrderManagementHandle | null>(null)
 
@@ -144,13 +149,30 @@ export function AdminPanel({ user }: AdminPanelProps) {
   }, [])
 
   useEffect(() => {
-    if (user.role === "admin" && fridayDate) {
-      void fetchAdminData(fridayDate)
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/teams", { cache: "no-store", credentials: "include" })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setTeams((data.teams ?? []) as Team[])
+      } catch (e) {
+        console.error("Failed to load teams:", e)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }, [user.role, fridayDate])
+  }, [])
 
   useEffect(() => {
-    if (user.role !== "admin" || !fridayDate) return
+    if ((user.role === "admin" || user.is_team_admin) && fridayDate) {
+      void fetchAdminData(fridayDate)
+    }
+  }, [user.role, user.is_team_admin, fridayDate, selectedTeamId])
+
+  useEffect(() => {
+    if ((user.role !== "admin" && !user.is_team_admin) || !fridayDate) return
 
     const channel = supabase
       .channel("orders-admin-feed")
@@ -169,30 +191,31 @@ export function AdminPanel({ user }: AdminPanelProps) {
       void supabase.removeChannel(channel)
       void supabase.removeChannel(usersChannel)
     }
-    }, [user.role, supabase, fridayDate])
+    }, [user.role, user.is_team_admin, supabase, fridayDate])
 
   useEffect(() => {
-    if (user.role !== "admin") return
+    if (user.role !== "admin" && !user.is_team_admin) return
+    if (!selectedTeamId) return
 
     let cancelled = false
     const loadTonyPhone = async () => {
       try {
         const { data, error } = await supabase
-          .from("settings")
-          .select("value")
-          .eq("key", "tony_phone")
+          .from("teams")
+          .select("vendor_phone")
+          .eq("id", selectedTeamId)
           .maybeSingle()
 
         if (error) throw error
 
         if (!cancelled) {
-          setTonyPhone(data?.value ?? "")
+          setTonyPhone(data?.vendor_phone ?? "")
           setContactError(null)
         }
       } catch (error) {
-        console.error("Failed to load Tony's phone number:", error)
+        console.error("Failed to load vendor phone number:", error)
         if (!cancelled) {
-          setContactError("Unable to load Tony's phone number. Please save it again.")
+          setContactError("Unable to load vendor phone number. Please save it again.")
         }
       }
     }
@@ -202,12 +225,13 @@ export function AdminPanel({ user }: AdminPanelProps) {
     return () => {
       cancelled = true
     }
-  }, [user.role, supabase])
+  }, [user.role, user.is_team_admin, supabase, selectedTeamId])
 
   const fetchAdminData = async (targetDate: string | null = fridayDate) => {
     if (!targetDate) return
     try {
-      const response = await fetch(`/api/admin/orders?fridayDate=${targetDate}`, { cache: "no-store", credentials: "include" })
+      const teamParam = selectedTeamId ? `&teamId=${selectedTeamId}` : ""
+      const response = await fetch(`/api/admin/orders?fridayDate=${targetDate}${teamParam}`, { cache: "no-store", credentials: "include" })
       if (!response.ok) {
         throw new Error("Failed to load admin data")
       }
@@ -239,16 +263,17 @@ export function AdminPanel({ user }: AdminPanelProps) {
     try {
       const newLockState = !isLocked
 
-      // Update all orders for this Friday
-      const { error } = await supabase.from("orders").update({ locked: newLockState }).eq("friday_date", fridayDate)
+      // Update orders for this Friday, scoped to the currently selected team
+      let updateQuery = supabase.from("orders").update({ locked: newLockState }).eq("friday_date", fridayDate)
+      if (selectedTeamId) updateQuery = updateQuery.eq("team_id", selectedTeamId)
+      const { error } = await updateQuery
 
       if (error) throw error
 
-      // Log the action
       await supabase.from("events").insert({
         type: newLockState ? "orders_locked" : "orders_unlocked",
         user_id: user.id,
-        payload: { friday_date: fridayDate, order_count: orders.length },
+        payload: { friday_date: fridayDate, order_count: orders.length, team_id: selectedTeamId },
       })
 
       setIsLocked(newLockState)
@@ -324,7 +349,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
         const names = Array.from(
           new Set(
             group.orders
-              .map((entry) => entry.user?.name || entry.user?.email || entry.user_id)
+              .map((entry) => entry.user?.name || entry.user?.email || "—")
               .filter((value): value is string => Boolean(value)),
           ),
         ).join("; ")
@@ -383,7 +408,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
         )
 
         sortedOrders.forEach((entry) => {
-          const displayName = entry.user?.name || entry.user?.email || entry.user_id
+          const displayName = entry.user?.name || entry.user?.email || "—"
           pushRow([
             "Order",
             group.item,
@@ -571,15 +596,23 @@ export function AdminPanel({ user }: AdminPanelProps) {
     setContactSaved(false)
 
     try {
-      const payload = { key: "tony_phone", value: normalized, updated_at: new Date().toISOString() }
-      const { error } = await supabase.from("settings").upsert(payload, { onConflict: "key" })
+      if (!selectedTeamId) {
+        throw new Error("Pick a team before saving the vendor phone")
+      }
 
-      if (error) throw error
+      const res = await fetch("/api/teams", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: selectedTeamId, updates: { vendor_phone: normalized } }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save vendor phone")
 
       await supabase.from("events").insert({
         type: "tony_phone_updated",
         user_id: user.id,
-        payload: { tony_phone: normalized },
+        payload: { tony_phone: normalized, team_id: selectedTeamId },
       })
 
       setContactSaved(true)
@@ -704,9 +737,11 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
   }
 
-  if (user.role !== "admin") {
+  if (user.role !== "admin" && !user.is_team_admin) {
     return null
   }
+
+  const isSuperAdmin = user.role === "admin"
 
   const orderedUserIds = orders.map((order) => order.user_id)
   const missingUsers = allUsers.filter((u) => u.whitelisted && !orderedUserIds.includes(u.id))
@@ -714,8 +749,74 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const messagePreview = orderSummaryMessage
   const messagePreviewRows = Math.min(12, Math.max(5, messagePreview.split("\n").length + 1))
 
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null
+
   return (
     <div className="space-y-6">
+      {/* Team picker (super-admin only) */}
+      {isSuperAdmin && teams.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <span>Viewing team:</span>
+              {selectedTeam && (
+                <Badge
+                  variant="outline"
+                  style={{
+                    backgroundColor: `${selectedTeam.color}1f`,
+                    borderColor: `${selectedTeam.color}66`,
+                    color: selectedTeam.color,
+                  }}
+                >
+                  {selectedTeam.name}
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {teams
+                .filter((t) => t.active)
+                .map((t) => {
+                  const active = t.id === selectedTeamId
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTeamId(t.id)}
+                      className="rounded-full border px-3 py-1 text-sm font-medium transition-all"
+                      style={{
+                        backgroundColor: active ? t.color : "transparent",
+                        borderColor: t.color,
+                        color: active ? "#fff" : t.color,
+                      }}
+                    >
+                      {t.name}
+                    </button>
+                  )
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Team-admin: simple banner showing their team */}
+      {!isSuperAdmin && user.is_team_admin && selectedTeam && (
+        <div
+          className="flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm"
+          style={{
+            backgroundColor: `${selectedTeam.color}14`,
+            borderColor: `${selectedTeam.color}66`,
+            color: selectedTeam.color,
+          }}
+        >
+          <Shield className="h-4 w-4" />
+          <span>Team Admin · {selectedTeam.name}</span>
+        </div>
+      )}
+
+      {isSuperAdmin && (
+        <TeamManagement currentUser={user} teams={teams} users={allUsers} onChange={() => fetchAdminData(fridayDate)} />
+      )}
+
       {/* Missing orders alert */}
       {missingUsers.length > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-orange-300/60 bg-orange-50/80 px-4 py-3 text-sm text-orange-800 shadow-sm backdrop-blur-xl dark:border-orange-500/30 dark:bg-orange-900/20 dark:text-orange-300">
@@ -784,7 +885,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
         </CardContent>
       </Card>
 
-      <NotificationSender fridayDate={fridayDate} users={allUsers} orders={orders} />
+      <NotificationSender fridayDate={fridayDate} users={allUsers} orders={orders} teamId={selectedTeamId} />
 
       <Card>
         <CardHeader>

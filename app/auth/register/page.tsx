@@ -9,16 +9,41 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import type { Team } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [name, setName] = useState("")
+  const [teamSlug, setTeamSlug] = useState<string | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createClient()
+    void (async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, slug, name, color, active, ordering_day_of_week, vendor_phone, created_at, updated_at")
+        .eq("active", true)
+        .order("slug")
+      if (cancelled) return
+      if (error) {
+        console.error("Failed to load teams:", error)
+        return
+      }
+      setTeams((data ?? []) as Team[])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +63,12 @@ export default function RegisterPage() {
       return
     }
 
+    if (!teamSlug) {
+      setError("Please pick your team")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -45,7 +76,8 @@ export default function RegisterPage() {
         options: {
           emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/`,
           data: {
-            name: name,
+            name,
+            team_slug: teamSlug,
           },
         },
       })
@@ -85,7 +117,7 @@ export default function RegisterPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="your.email@company.com"
+                    placeholder="your.email@facilization.com"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -110,6 +142,39 @@ export default function RegisterPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Pick your team</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {teams.map((team) => {
+                      const selected = teamSlug === team.slug
+                      return (
+                        <button
+                          key={team.id}
+                          type="button"
+                          onClick={() => setTeamSlug(team.slug)}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-sm font-medium transition-all",
+                            "hover:border-foreground/30",
+                            selected
+                              ? "ring-2 ring-offset-2 ring-offset-background"
+                              : "border-border",
+                          )}
+                          style={{
+                            backgroundColor: selected ? team.color : "transparent",
+                            color: selected ? "#fff" : team.color,
+                            borderColor: team.color,
+                            boxShadow: selected ? `0 0 0 1px ${team.color}` : undefined,
+                          }}
+                        >
+                          {team.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!teams.length && (
+                    <p className="text-xs text-muted-foreground">Loading teams…</p>
+                  )}
                 </div>
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>

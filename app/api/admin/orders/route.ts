@@ -1,16 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireTeamAdmin, isErrorResponse } from "@/lib/supabase/auth-helpers"
 
 const DEFAULT_DAY_OF_WEEK = 5
-
-function parseDayOfWeek(value: string | null | undefined): number {
-  const parsed = Number(value)
-  if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 6) {
-    return parsed
-  }
-  return DEFAULT_DAY_OF_WEEK
-}
 
 function nextDateStringForDay(dayOfWeek: number): string {
   const now = new Date()
@@ -22,212 +14,194 @@ function nextDateStringForDay(dayOfWeek: number): string {
   return target.toISOString().split("T")[0]
 }
 
-async function getCurrentOrderDateString(adminClient: ReturnType<typeof createAdminClient>): Promise<string> {
-  try {
-    const { data, error } = await adminClient
-      .from("settings")
-      .select("value")
-      .eq("key", "ordering_day_of_week")
-      .maybeSingle()
-
-    if (error) {
-      console.warn("Falling back to default ordering day due to settings query error:", error.message)
-      return nextDateStringForDay(DEFAULT_DAY_OF_WEEK)
-    }
-
-    const dayOfWeek = parseDayOfWeek((data?.value as string | null | undefined) ?? undefined)
-    return nextDateStringForDay(dayOfWeek)
-  } catch (error) {
-    console.error("Failed to resolve ordering day from settings:", error)
-    return nextDateStringForDay(DEFAULT_DAY_OF_WEEK)
-  }
-}
-
-async function requireAdmin(request: NextRequest) {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { errorResponse: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-  }
-
-  const { data: profile, error } = await admin.from("users").select("id, role").eq("id", user.id).maybeSingle()
-
-  if (error || profile?.role !== "admin") {
-    return { errorResponse: NextResponse.json({ error: "Admin access required" }, { status: 403 }) }
-  }
-
-  return { admin, userId: user.id }
+async function resolveOrderingDateForTeam(
+  admin: ReturnType<typeof createAdminClient>,
+  teamId: string,
+): Promise<string> {
+  const { data } = await admin
+    .from("teams")
+    .select("ordering_day_of_week")
+    .eq("id", teamId)
+    .maybeSingle()
+  const day = data?.ordering_day_of_week
+  const safe = Number.isInteger(day) && day! >= 0 && day! <= 6 ? day! : DEFAULT_DAY_OF_WEEK
+  return nextDateStringForDay(safe)
 }
 
 function normalizeCashAvailableAll(value: unknown): number | null {
-  if (value == null || value === "") {
-    return 0
-  }
-
+  if (value == null || value === "") return 0
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return null
-  }
-
+  if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
 }
 
+function resolveTargetTeam(url: URL, gate: { role: string; teamAdminFor: string | null; teamId: string }): string | null {
+  const fromQuery = url.searchParams.get("teamId")
+  if (fromQuery) return fromQuery
+  if (gate.role === "team-admin" && gate.teamAdminFor) return gate.teamAdminFor
+  if (gate.role === "super-admin") return null
+  return gate.teamId
+}
+
 export async function GET(request: NextRequest) {
-  try {
-    const result = await requireAdmin(request)
-    if ("errorResponse" in result) return result.errorResponse
+  const url = new URL(request.url)
+  const requestedTeam = url.searchParams.get("teamId")
 
-    const { admin } = result
+  const gate = await requireTeamAdmin(requestedTeam)
+  if (isErrorResponse(gate)) return gate.errorResponse
 
-    const url = new URL(request.url)
-    const requestedDate = url.searchParams.get("fridayDate")
-    const fridayDate = requestedDate ?? (await getCurrentOrderDateString(admin))
+  const { admin } = gate
+  const targetTeam = resolveTargetTeam(url, gate)
 
-    const [ordersResult, eventsResult, menuResult, usersResult] = await Promise.all([
-      admin
-        .from("orders")
-        .select("*, user:users(id, name, email, phone)")
-        .eq("friday_date", fridayDate)
-        .order("created_at"),
-      admin
-        .from("events")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50),
-      admin.from("menu_items").select("*").order("item, variant"),
-      admin
-        .from("users")
-        .select("id, name, email, phone, role, whitelisted, created_at, updated_at")
-        .order("created_at", { ascending: false }),
-    ])
+  const requestedDate = url.searchParams.get("fridayDate")
+  const fridayDate =
+    requestedDate ?? (targetTeam ? await resolveOrderingDateForTeam(admin, targetTeam) : nextDateStringForDay(DEFAULT_DAY_OF_WEEK))
 
-    return NextResponse.json({
-      fridayDate,
-      orders: ordersResult.data ?? [],
-      events: eventsResult.data ?? [],
-      menuItems: menuResult.data ?? [],
-      users: usersResult.data ?? [],
-    })
-  } catch (error) {
-    console.error("Admin orders GET error:", error)
-    return NextResponse.json({ error: "Failed to load admin data" }, { status: 500 })
+  // Build orders query — filter by team unless super-admin asked for ALL
+  let ordersQuery = admin
+    .from("orders")
+    .select("*, user:users(id, name, email, phone, team_id)")
+    .eq("friday_date", fridayDate)
+    .order("created_at")
+
+  if (targetTeam) ordersQuery = ordersQuery.eq("team_id", targetTeam)
+
+  let usersQuery = admin
+    .from("users")
+    .select("id, name, email, phone, role, whitelisted, team_id, created_at, updated_at")
+    .order("created_at", { ascending: false })
+
+  if (targetTeam) usersQuery = usersQuery.eq("team_id", targetTeam)
+
+  let eventsQuery = admin.from("events").select("*").order("created_at", { ascending: false }).limit(50)
+  if (targetTeam) {
+    // Limit events to ones authored by members of this team.
+    const { data: teamUserIds } = await admin.from("users").select("id").eq("team_id", targetTeam)
+    const ids = (teamUserIds ?? []).map((u) => u.id)
+    if (ids.length) eventsQuery = eventsQuery.in("user_id", ids)
   }
+
+  const [ordersResult, eventsResult, menuResult, usersResult] = await Promise.all([
+    ordersQuery,
+    eventsQuery,
+    admin.from("menu_items").select("*").order("item, variant"),
+    usersQuery,
+  ])
+
+  return NextResponse.json({
+    fridayDate,
+    teamId: targetTeam,
+    orders: ordersResult.data ?? [],
+    events: eventsResult.data ?? [],
+    menuItems: menuResult.data ?? [],
+    users: usersResult.data ?? [],
+  })
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const result = await requireAdmin(request)
-    if ("errorResponse" in result) return result.errorResponse
+  const body = await request.json()
+  const { user_id, item, variant, notes, friday_date, cash_available_all, team_id: requestTeamId } = body
 
-    const { admin } = result
-
-    const { user_id, item, variant, notes, friday_date, cash_available_all } = await request.json()
-
-    if (!user_id || !item || !variant) {
-      return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
-    }
-
-    const normalizedCashAvailableAll = normalizeCashAvailableAll(cash_available_all)
-    if (normalizedCashAvailableAll == null) {
-      return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
-    }
-
-    const fridayDate = friday_date || (await getCurrentOrderDateString(admin))
-
-    const { data, error } = await admin
-      .from("orders")
-      .insert({
-        user_id,
-        item,
-        variant,
-        notes: notes?.trim() || null,
-        cash_available_all: normalizedCashAvailableAll,
-        friday_date: fridayDate,
-      })
-      .select("*, user:users(id, name, email, phone)")
-      .single()
-
-    if (error) {
-      console.error("Admin order insert failed:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ order: data })
-  } catch (error) {
-    console.error("Admin orders POST error:", error)
-    return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
+  if (!user_id || !item || !variant) {
+    return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
   }
+
+  // Resolve team from the target user, then gate the caller against that team.
+  const probe = await requireTeamAdmin(null)
+  if (isErrorResponse(probe)) return probe.errorResponse
+
+  const { data: targetUser } = await probe.admin
+    .from("users")
+    .select("id, team_id")
+    .eq("id", user_id)
+    .maybeSingle()
+  if (!targetUser) return NextResponse.json({ error: "User not found" }, { status: 404 })
+
+  const effectiveTeam = requestTeamId ?? targetUser.team_id
+
+  if (probe.role === "team-admin" && probe.teamAdminFor !== effectiveTeam) {
+    return NextResponse.json({ error: "Forbidden for this team" }, { status: 403 })
+  }
+
+  const normalizedCashAvailableAll = normalizeCashAvailableAll(cash_available_all)
+  if (normalizedCashAvailableAll == null) {
+    return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
+  }
+
+  const fridayDate = friday_date || (await resolveOrderingDateForTeam(probe.admin, effectiveTeam))
+
+  const { data, error } = await probe.admin
+    .from("orders")
+    .insert({
+      user_id,
+      team_id: effectiveTeam,
+      item,
+      variant,
+      notes: notes?.trim() || null,
+      cash_available_all: normalizedCashAvailableAll,
+      friday_date: fridayDate,
+    })
+    .select("*, user:users(id, name, email, phone, team_id)")
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ order: data })
 }
 
 export async function PATCH(request: NextRequest) {
-  try {
-    const result = await requireAdmin(request)
-    if ("errorResponse" in result) return result.errorResponse
+  const { id, updates } = await request.json()
+  if (!id || !updates) return NextResponse.json({ error: "id and updates are required" }, { status: 400 })
 
-    const { admin } = result
+  const probe = await requireTeamAdmin(null)
+  if (isErrorResponse(probe)) return probe.errorResponse
 
-    const { id, updates } = await request.json()
+  const { data: target } = await probe.admin.from("orders").select("team_id").eq("id", id).maybeSingle()
+  if (!target) return NextResponse.json({ error: "Order not found" }, { status: 404 })
 
-    if (!id || !updates) {
-      return NextResponse.json({ error: "id and updates are required" }, { status: 400 })
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updates, "cash_available_all")) {
-      const normalizedCashAvailableAll = normalizeCashAvailableAll(updates.cash_available_all)
-      if (normalizedCashAvailableAll == null) {
-        return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
-      }
-      updates.cash_available_all = normalizedCashAvailableAll
-    }
-
-    const { data, error } = await admin
-      .from("orders")
-      .update(updates)
-      .eq("id", id)
-      .select("*, user:users(id, name, email, phone)")
-      .single()
-
-    if (error) {
-      console.error("Admin order update failed:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ order: data })
-  } catch (error) {
-    console.error("Admin orders PATCH error:", error)
-    return NextResponse.json({ error: "Failed to update order" }, { status: 500 })
+  if (probe.role === "team-admin" && probe.teamAdminFor !== target.team_id) {
+    return NextResponse.json({ error: "Forbidden for this team" }, { status: 403 })
   }
+
+  // never let updates change team_id directly here
+  if (Object.prototype.hasOwnProperty.call(updates, "team_id")) {
+    delete updates.team_id
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "cash_available_all")) {
+    const normalized = normalizeCashAvailableAll(updates.cash_available_all)
+    if (normalized == null) {
+      return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
+    }
+    updates.cash_available_all = normalized
+  }
+
+  const { data, error } = await probe.admin
+    .from("orders")
+    .update(updates)
+    .eq("id", id)
+    .select("*, user:users(id, name, email, phone, team_id)")
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ order: data })
 }
 
 export async function DELETE(request: NextRequest) {
-  try {
-    const result = await requireAdmin(request)
-    if ("errorResponse" in result) return result.errorResponse
+  const url = new URL(request.url)
+  const id = url.searchParams.get("id")
+  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
 
-    const { admin } = result
+  const probe = await requireTeamAdmin(null)
+  if (isErrorResponse(probe)) return probe.errorResponse
 
-    const url = new URL(request.url)
-    const id = url.searchParams.get("id")
+  const { data: target } = await probe.admin.from("orders").select("team_id").eq("id", id).maybeSingle()
+  if (!target) return NextResponse.json({ error: "Order not found" }, { status: 404 })
 
-    if (!id) {
-      return NextResponse.json({ error: "id is required" }, { status: 400 })
-    }
-
-    const { error } = await admin.from("orders").delete().eq("id", id)
-
-    if (error) {
-      console.error("Admin order delete failed:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Admin orders DELETE error:", error)
-    return NextResponse.json({ error: "Failed to delete order" }, { status: 500 })
+  if (probe.role === "team-admin" && probe.teamAdminFor !== target.team_id) {
+    return NextResponse.json({ error: "Forbidden for this team" }, { status: 403 })
   }
+
+  const { error } = await probe.admin.from("orders").delete().eq("id", id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
 }

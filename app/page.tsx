@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { OrderingInterface } from "@/components/ordering-interface"
+import type { User } from "@/lib/types"
 
 type HomePageProps = {
   searchParams?: Record<string, string | string[] | undefined>
@@ -39,12 +40,28 @@ export default async function HomePage({ searchParams = {} }: HomePageProps) {
     redirect("/auth/login")
   }
 
-  // Get user profile to check if whitelisted
-  const { data: userProfile } = await supabase.from("users").select("*").eq("id", user.id).single()
+  const { data: userProfile } = await supabase
+    .from("users")
+    .select("*, team:teams(id, slug, name, color)")
+    .eq("id", user.id)
+    .single()
 
   if (!userProfile?.whitelisted) {
     redirect("/auth/not-whitelisted")
   }
 
-  return <OrderingInterface user={userProfile} />
+  // Resolve team-admin flag (a separate query to keep RLS happy).
+  const { data: teamAdminRow } = await supabase
+    .from("team_admins")
+    .select("team_id")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const enriched: User = {
+    ...userProfile,
+    is_team_admin: Boolean(teamAdminRow),
+    team_admin_for: teamAdminRow?.team_id ?? null,
+  }
+
+  return <OrderingInterface user={enriched} />
 }

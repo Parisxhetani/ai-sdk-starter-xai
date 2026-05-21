@@ -15,6 +15,7 @@ interface NotificationSenderProps {
   fridayDate: string | null
   users: User[]
   orders: Order[]
+  teamId?: string | null
 }
 
 function formatFriendlyDate(orderDate: string | null): string {
@@ -35,7 +36,7 @@ function buildDefaultMessage(friendlyDate: string): string {
   ].join("\n")
 }
 
-export function NotificationSender({ fridayDate, users, orders }: NotificationSenderProps) {
+export function NotificationSender({ fridayDate, users, orders, teamId }: NotificationSenderProps) {
   const orderedUserIds = useMemo(() => new Set(orders.map((order) => order.user_id)), [orders])
   const missingUsers = useMemo(() => users.filter((user) => user.whitelisted && !orderedUserIds.has(user.id)), [users, orderedUserIds])
   const missingEmails = useMemo(
@@ -106,6 +107,7 @@ export function NotificationSender({ fridayDate, users, orders }: NotificationSe
           message,
           recipients: finalRecipients,
           fridayDate,
+          teamId,
         }),
       })
 

@@ -1,3 +1,17 @@
+export type TeamSlug = "CORE" | "BLUE" | "PURPLE" | "PINK" | "ORANGE" | "GREEN" | (string & {})
+
+export interface Team {
+  id: string
+  slug: TeamSlug
+  name: string
+  color: string
+  active: boolean
+  ordering_day_of_week: number
+  vendor_phone: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface User {
   id: string
   email: string
@@ -5,6 +19,10 @@ export interface User {
   role: "admin" | "member"
   phone?: string
   whitelisted: boolean
+  team_id: string
+  team?: Pick<Team, "id" | "slug" | "name" | "color"> | null
+  is_team_admin?: boolean
+  team_admin_for?: string | null
   created_at: string
   updated_at: string
 }
@@ -21,6 +39,7 @@ export interface MenuItem {
 export interface Order {
   id: string
   user_id: string
+  team_id: string
   friday_date: string
   item: string
   variant: string
@@ -33,6 +52,7 @@ export interface Order {
     name: string | null
     email: string | null
     phone?: string | null
+    team_id?: string | null
   }
 }
 
@@ -60,6 +80,19 @@ export interface Message {
     email: string | null
   }
 }
+
+export interface TeamMessage {
+  id: string
+  team_id: string
+  user_id: string
+  content: string
+  created_at: string
+  user?: {
+    name: string | null
+    email: string | null
+  }
+}
+
 export interface OrderSummary {
   item: string
   variant: string

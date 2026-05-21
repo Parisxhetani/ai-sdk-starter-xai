@@ -677,9 +677,27 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                               </motion.span>
                             )}
                           </AnimatePresence>
+                          {user.team && (
+                            <Badge
+                              variant="outline"
+                              className="rounded-full px-3 py-1 text-xs font-medium"
+                              style={{
+                                backgroundColor: `${user.team.color}1f`,
+                                borderColor: `${user.team.color}66`,
+                                color: user.team.color,
+                              }}
+                            >
+                              {user.team.name}
+                            </Badge>
+                          )}
                           {user.role === "admin" && (
                             <Badge variant="outline" className="rounded-full border-primary/30 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
                               Admin
+                            </Badge>
+                          )}
+                          {user.role !== "admin" && user.is_team_admin && (
+                            <Badge variant="outline" className="rounded-full border-primary/30 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
+                              Team Admin
                             </Badge>
                           )}
                         </p>
@@ -1382,7 +1400,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
             </motion.div>
           )}
 
-          {user.role === "admin" && (
+          {(user.role === "admin" || user.is_team_admin) && (
             <motion.div variants={staggerItem}>
               <AdminPanel user={user} />
             </motion.div>
