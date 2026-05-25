@@ -1,5 +1,23 @@
 export type TeamSlug = "CORE" | "BLUE" | "PURPLE" | "PINK" | "ORANGE" | "GREEN" | (string & {})
 
+export interface Vendor {
+  id: string
+  slug: string
+  name: string
+  icon: string
+  color: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamVendorOverride {
+  team_id: string
+  friday_date: string
+  vendor_id: string
+  created_at: string
+}
+
 export interface Team {
   id: string
   slug: TeamSlug
@@ -8,6 +26,7 @@ export interface Team {
   active: boolean
   ordering_day_of_week: number
   vendor_phone: string | null
+  default_vendor_id: string | null
   created_at: string
   updated_at: string
 }
@@ -33,6 +52,7 @@ export interface MenuItem {
   variant: string
   price_all?: number | null
   active: boolean
+  vendor_id: string
   created_at: string
 }
 

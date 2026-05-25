@@ -31,7 +31,7 @@ import {
   formatFridayDate,
   getOrderingTimeframe,
 } from "@/lib/utils/time"
-import type { User, MenuItem, Order, OrderSummary } from "@/lib/types"
+import type { User, MenuItem, Order, OrderSummary, Vendor } from "@/lib/types"
 import { Clock, Users, ShoppingBag, LogOut, Trash2, ChevronDown, PartyPopper, Flame, Sparkles, UtensilsCrossed, MessageCircle } from "lucide-react"
 
 interface OrderingInterfaceProps { user: User }
@@ -251,6 +251,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [phone, setPhone] = useState(user.phone || "")
   const [cashAvailableInput, setCashAvailableInput] = useState("")
   const [fridayDate, setFridayDate] = useState<string | null>(null)
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [activeVendorId, setActiveVendorId] = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -269,9 +271,17 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     return () => { cancelled = true }
   }, [])
 
-  const availableVariants = menuItems.filter((i) => i.item === selectedItem && i.active)
+  const visibleMenu = useMemo(
+    () => (activeVendorId ? menuItems.filter((m) => m.vendor_id === activeVendorId) : menuItems),
+    [menuItems, activeVendorId],
+  )
+  const activeVendor = useMemo(
+    () => vendors.find((v) => v.id === activeVendorId) ?? null,
+    [vendors, activeVendorId],
+  )
+  const availableVariants = visibleMenu.filter((i) => i.item === selectedItem && i.active)
   const selectedMenuItem = useMemo(
-    () => menuItems.find((i) => i.item === selectedItem && i.variant === selectedVariant) ?? null,
+    () => visibleMenu.find((i) => i.item === selectedItem && i.variant === selectedVariant) ?? null,
     [menuItems, selectedItem, selectedVariant],
   )
   const menuPriceMap = useMemo(
@@ -327,6 +337,60 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
     })
     return Array.from(map.values())
   }, [orders, teamRoster])
+
+  // Load all vendors once
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/vendors", { cache: "no-store", credentials: "include" })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setVendors((data.vendors ?? []) as Vendor[])
+      } catch (e) {
+        console.error("Failed to load vendors:", e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Resolve the active vendor for this user's team + the current ordering date.
+  useEffect(() => {
+    if (!fridayDate || !user.team_id) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data: override } = await supabase
+          .from("team_vendor_overrides")
+          .select("vendor_id")
+          .eq("team_id", user.team_id)
+          .eq("friday_date", fridayDate)
+          .maybeSingle()
+
+        if (cancelled) return
+
+        if (override?.vendor_id) {
+          setActiveVendorId(override.vendor_id)
+          return
+        }
+
+        const { data: team } = await supabase
+          .from("teams")
+          .select("default_vendor_id")
+          .eq("id", user.team_id)
+          .maybeSingle()
+
+        if (!cancelled) setActiveVendorId(team?.default_vendor_id ?? null)
+      } catch (e) {
+        console.error("Failed to resolve active vendor:", e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [fridayDate, user.team_id, supabase])
 
   // Initial data fetch
   useEffect(() => {
@@ -868,6 +932,25 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                   canOrder && !currentOrder && "ring-2 ring-primary/20 shadow-[0_0_40px_-10px_rgba(20,146,230,0.3)]"
                 )}>
                   <CardHeader>
+                    {activeVendor && (
+                      <div
+                        className="mb-3 flex items-center gap-3 rounded-2xl border px-3 py-2"
+                        style={{
+                          backgroundColor: `${activeVendor.color}14`,
+                          borderColor: `${activeVendor.color}55`,
+                        }}
+                      >
+                        <span className="text-2xl leading-none">{activeVendor.icon}</span>
+                        <div className="flex flex-col">
+                          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                            Today's vendor
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: activeVendor.color }}>
+                            {activeVendor.name}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <CardTitle className="flex items-center gap-2">
                       {currentOrder ? (
                         <>
@@ -944,7 +1027,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                               <SelectValue placeholder="What are you feeling?" />
                             </SelectTrigger>
                             <SelectContent className="border border-border/60 bg-white/80 text-foreground backdrop-blur-xl dark:bg-white/10">
-                              {Array.from(new Set(menuItems.map((item) => item.item))).map((item) => (
+                              {Array.from(new Set(visibleMenu.map((item) => item.item))).map((item) => (
                                 <SelectItem className="focus:bg-accent focus:text-accent-foreground" key={item} value={item}>
                                   {getFoodEmoji(item)} {item}
                                 </SelectItem>

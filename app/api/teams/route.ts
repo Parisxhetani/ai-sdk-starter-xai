@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest) {
 
   // Restrict the columns team-admins can touch.
   const safeUpdates: Record<string, unknown> = {}
-  const allowedForTeamAdmin = new Set(["ordering_day_of_week", "vendor_phone"])
+  const allowedForTeamAdmin = new Set(["ordering_day_of_week", "vendor_phone", "default_vendor_id"])
   const allowedForSuper = new Set([...allowedForTeamAdmin, "name", "color", "active", "slug"])
   const allowed = isSuper ? allowedForSuper : allowedForTeamAdmin
 

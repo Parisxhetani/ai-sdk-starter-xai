@@ -19,9 +19,10 @@ import type { AdminOrderManagementHandle } from "@/components/admin-order-manage
 import { AdminUserManagement } from "@/components/admin-user-management"
 import { NotificationSender } from "@/components/notification-sender"
 import { TeamManagement } from "@/components/team-management"
+import { VendorPicker } from "@/components/vendor-picker"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import { formatLekPrice, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
-import type { Order, Event, MenuItem, User, Team } from "@/lib/types"
+import type { Order, Event, MenuItem, User, Team, Vendor } from "@/lib/types"
 import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle, Shield } from "lucide-react"
 
 function getFriendlyOrderDate(orderDate: string | null): string {
@@ -111,8 +112,11 @@ export function AdminPanel({ user }: AdminPanelProps) {
   const [showAddMenuDialog, setShowAddMenuDialog] = useState(false)
   const [newItemName, setNewItemName] = useState("")
   const [newVariantName, setNewVariantName] = useState("")
+  const [newItemVendorId, setNewItemVendorId] = useState<string>("")
+  const [newItemPrice, setNewItemPrice] = useState<string>("")
   const [isAddingMenuItem, setIsAddingMenuItem] = useState(false)
   const [teams, setTeams] = useState<Team[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(
     user.role === "admin" ? user.team_id : user.team_admin_for ?? user.team_id,
   )
@@ -152,18 +156,38 @@ export function AdminPanel({ user }: AdminPanelProps) {
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch("/api/teams", { cache: "no-store", credentials: "include" })
-        if (!res.ok) return
-        const data = await res.json()
-        if (!cancelled) setTeams((data.teams ?? []) as Team[])
+        const [teamsRes, vendorsRes] = await Promise.all([
+          fetch("/api/teams", { cache: "no-store", credentials: "include" }),
+          fetch("/api/vendors", { cache: "no-store", credentials: "include" }),
+        ])
+        if (teamsRes.ok) {
+          const tdata = await teamsRes.json()
+          if (!cancelled) setTeams((tdata.teams ?? []) as Team[])
+        }
+        if (vendorsRes.ok) {
+          const vdata = await vendorsRes.json()
+          if (!cancelled) setVendors((vdata.vendors ?? []) as Vendor[])
+        }
       } catch (e) {
-        console.error("Failed to load teams:", e)
+        console.error("Failed to load teams or vendors:", e)
       }
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  const reloadTeams = async () => {
+    try {
+      const res = await fetch("/api/teams", { cache: "no-store", credentials: "include" })
+      if (res.ok) {
+        const data = await res.json()
+        setTeams((data.teams ?? []) as Team[])
+      }
+    } catch (e) {
+      console.error("Failed to reload teams:", e)
+    }
+  }
 
   useEffect(() => {
     if ((user.role === "admin" || user.is_team_admin) && fridayDate) {
@@ -699,17 +723,27 @@ export function AdminPanel({ user }: AdminPanelProps) {
     }
     setIsAddingMenuItem(true)
     try {
+      const priceNum = newItemPrice.trim() ? Number(newItemPrice) : undefined
+      const body: Record<string, unknown> = {
+        item: newItemName.trim(),
+        variant: newVariantName.trim(),
+      }
+      if (newItemVendorId) body.vendor_id = newItemVendorId
+      if (typeof priceNum === "number" && Number.isFinite(priceNum)) body.price_all = priceNum
+
       const response = await fetch("/api/admin/menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ item: newItemName.trim(), variant: newVariantName.trim() }),
+        body: JSON.stringify(body),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to add menu item")
       toast.success(`Added "${newItemName.trim()} — ${newVariantName.trim()}" to the menu 🎉`)
       setNewItemName("")
       setNewVariantName("")
+      setNewItemVendorId("")
+      setNewItemPrice("")
       setShowAddMenuDialog(false)
       await fetchAdminData()
     } catch (error) {
@@ -812,6 +846,17 @@ export function AdminPanel({ user }: AdminPanelProps) {
           <span>Team Admin · {selectedTeam.name}</span>
         </div>
       )}
+
+      {/* Today's vendor */}
+      <VendorPicker
+        team={selectedTeam}
+        fridayDate={fridayDate}
+        vendors={vendors}
+        onChange={() => {
+          void reloadTeams()
+          void fetchAdminData(fridayDate)
+        }}
+      />
 
       {isSuperAdmin && (
         <TeamManagement currentUser={user} teams={teams} users={allUsers} onChange={() => fetchAdminData(fridayDate)} />
@@ -1049,11 +1094,15 @@ export function AdminPanel({ user }: AdminPanelProps) {
                     .filter((item) => item.item === itemName)
                     .map((menuItem) => {
                       const priceLabel = formatLekPrice(menuItem.price_all)
+                      const vendor = vendors.find((v) => v.id === menuItem.vendor_id)
 
                       return (
                         <div key={menuItem.id} className="flex items-center justify-between p-2 border rounded">
                           <div className={menuItem.active ? "" : "text-muted-foreground line-through"}>
-                            <p>{menuItem.variant}</p>
+                            <p className="flex items-center gap-1">
+                              {vendor && <span title={vendor.name}>{vendor.icon}</span>}
+                              <span>{menuItem.variant}</span>
+                            </p>
                             {priceLabel && <p className="text-xs text-muted-foreground">{priceLabel}</p>}
                           </div>
                           <div className="flex items-center gap-1">
@@ -1114,11 +1163,44 @@ export function AdminPanel({ user }: AdminPanelProps) {
                 onKeyDown={(e) => { if (e.key === "Enter") void handleAddMenuItem() }}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-item-vendor">Vendor</Label>
+              <select
+                id="new-item-vendor"
+                value={newItemVendorId}
+                onChange={(e) => setNewItemVendorId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Default (Tony's)</option>
+                {vendors.filter((v) => v.active).map((v) => (
+                  <option key={v.id} value={v.id}>{v.icon} {v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-item-price">Price (ALL, optional)</Label>
+              <Input
+                id="new-item-price"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                placeholder="e.g. 700"
+                value={newItemPrice}
+                onChange={(e) => setNewItemPrice(e.target.value.replace(/[^\d]/g, ""))}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAddMenuItem() }}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setShowAddMenuDialog(false); setNewItemName(""); setNewVariantName("") }}
+              onClick={() => {
+                setShowAddMenuDialog(false)
+                setNewItemName("")
+                setNewVariantName("")
+                setNewItemVendorId("")
+                setNewItemPrice("")
+              }}
             >
               Cancel
             </Button>

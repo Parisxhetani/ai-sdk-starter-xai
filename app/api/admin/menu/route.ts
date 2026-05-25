@@ -5,14 +5,33 @@ export async function POST(request: NextRequest) {
   const gate = await requireSuperAdmin()
   if (isErrorResponse(gate)) return gate.errorResponse
 
-  const { item, variant } = await request.json()
+  const { item, variant, vendor_id, price_all } = await request.json()
   if (!item?.trim() || !variant?.trim()) {
     return NextResponse.json({ error: "item and variant are required" }, { status: 400 })
   }
 
+  let resolvedVendorId = vendor_id as string | undefined
+  if (!resolvedVendorId) {
+    const { data: tony } = await gate.admin.from("vendors").select("id").eq("slug", "TONY").maybeSingle()
+    resolvedVendorId = tony?.id
+  }
+  if (!resolvedVendorId) {
+    return NextResponse.json({ error: "vendor_id required (no default vendor found)" }, { status: 400 })
+  }
+
+  const insertRow: Record<string, unknown> = {
+    item: item.trim(),
+    variant: variant.trim(),
+    active: true,
+    vendor_id: resolvedVendorId,
+  }
+  if (typeof price_all === "number" && Number.isFinite(price_all) && price_all >= 0) {
+    insertRow.price_all = price_all
+  }
+
   const { data, error } = await gate.admin
     .from("menu_items")
-    .insert({ item: item.trim(), variant: variant.trim(), active: true })
+    .insert(insertRow)
     .select()
     .single()
 
