@@ -1,7 +1,8 @@
 -- 012_seed_zgara_korcare.sql
 -- Seed a new vendor: "Zgara Korçare" (Albanian grill).
 -- Pulls menu from Wolt (2026-05-25). Beer section was not exposed by the page,
--- so we seed common Albanian beer names with NULL price for the admin to fill in.
+-- so we seed common Albanian beer names with price = 0 (placeholder) for the admin to fill in.
+-- (price_all is NOT NULL with default 0 per migration 008.)
 -- Depends on 011_add_vendors.sql.
 -- Idempotent.
 
@@ -62,12 +63,12 @@ BEGIN
     ('Mëngjesore',  'Omletë',                    300,  true, v),
     ('Mëngjesore',  'Supë Pule',                 250,  true, v),
     ('Mëngjesore',  'Fasule',                    270,  true, v),
-    -- Birra (beers) — common Albanian options, prices left NULL for admin to fill in
-    ('Birra',       'Birra Korça',              NULL,  true, v),
-    ('Birra',       'Birra Korça e Zezë',       NULL,  true, v),
-    ('Birra',       'Birra Tirana',             NULL,  true, v),
-    ('Birra',       'Birra Stela',              NULL,  true, v),
-    ('Birra',       'Birra Peja',               NULL,  true, v),
-    ('Birra',       'Birra Heineken',           NULL,  true, v)
+    -- Birra (beers) — common Albanian options, price 0 (placeholder for admin to fill in)
+    ('Birra',       'Birra Korça',                 0,  true, v),
+    ('Birra',       'Birra Korça e Zezë',          0,  true, v),
+    ('Birra',       'Birra Tirana',                0,  true, v),
+    ('Birra',       'Birra Stela',                 0,  true, v),
+    ('Birra',       'Birra Peja',                  0,  true, v),
+    ('Birra',       'Birra Heineken',              0,  true, v)
   ON CONFLICT (vendor_id, item, variant) DO NOTHING;
 END $$;
