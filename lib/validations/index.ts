@@ -1,17 +1,42 @@
 import { z } from "zod"
 
-export const createOrderSchema = z.object({
+import { COFFEE_CHOICES, COFFEE_NOTE_MAX, type CoffeeChoice } from "@/lib/coffee"
+
+const COFFEE_CHOICE_VALUES = COFFEE_CHOICES.map((option) => option.value) as [CoffeeChoice, ...CoffeeChoice[]]
+
+const orderFieldsSchema = z.object({
   user_id: z.string().uuid("Invalid user ID"),
   friday_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (use YYYY-MM-DD)"),
   item: z.string().min(1, "Item is required").max(100, "Item name too long"),
   variant: z.string().min(1, "Variant is required").max(100, "Variant name too long"),
   notes: z.string().max(100, "Notes must be 100 characters or less").optional().nullable(),
   cash_available_all: z.number().int("Cash amount must be a whole number").min(0, "Cash amount cannot be negative").default(0),
+  coffee_choice: z.enum(COFFEE_CHOICE_VALUES).optional().nullable(),
+  coffee_note: z.string().max(COFFEE_NOTE_MAX, `Keep it under ${COFFEE_NOTE_MAX} characters`).optional().nullable(),
 })
 
-export const updateOrderSchema = createOrderSchema.partial().extend({
-  id: z.string().uuid("Invalid order ID"),
-})
+// Picking "Something else" without saying what is the one coffee mistake worth
+// catching in the UI. The inverse (a note with no choice) is left to the DB
+// constraint, which sees the whole row and can't be fooled by a partial update.
+function requireNoteForOther(
+  value: { coffee_choice?: CoffeeChoice | null; coffee_note?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (value.coffee_choice === "other" && !value.coffee_note?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["coffee_note"],
+      message: "Tell us what you'd like",
+    })
+  }
+}
+
+export const createOrderSchema = orderFieldsSchema.superRefine(requireNoteForOther)
+
+export const updateOrderSchema = orderFieldsSchema
+  .partial()
+  .extend({ id: z.string().uuid("Invalid order ID") })
+  .superRefine(requireNoteForOther)
 
 export const deleteOrderSchema = z.object({
   id: z.string().uuid("Invalid order ID"),

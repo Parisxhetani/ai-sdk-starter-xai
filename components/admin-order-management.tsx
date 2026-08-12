@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { formatLekPrice, formatMenuVariantLabel, formatOrderLine } from "@/lib/utils"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
+import { COFFEE_CHOICES, COFFEE_NOTE_MAX, formatCoffeeChoice } from "@/lib/coffee"
 import type { User, MenuItem, Order } from "@/lib/types"
 import { Plus, Edit, Trash2, UserPlus, AlertCircle } from "lucide-react"
 
@@ -26,6 +27,9 @@ export interface AdminOrderManagementHandle {
 }
 
 const ADMIN_ORDERS_ENDPOINT = "/api/admin/orders"
+
+// Radix Select can't hold an empty value, so "hasn't picked yet" needs a token.
+const COFFEE_UNDECIDED = "__undecided__"
 
 export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, AdminOrderManagementProps>(({ user, onChange }, ref) => {
   const [allUsers, setAllUsers] = useState<User[]>([])
@@ -43,6 +47,8 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
   const [selectedVariant, setSelectedVariant] = useState("")
   const [notes, setNotes] = useState("")
   const [cashAvailableInput, setCashAvailableInput] = useState("")
+  const [coffeeChoiceInput, setCoffeeChoiceInput] = useState<string>(COFFEE_UNDECIDED)
+  const [coffeeNoteInput, setCoffeeNoteInput] = useState("")
 
   const activeMenuItems = useMemo(() => menuItems.filter((item) => item.active), [menuItems])
 
@@ -95,6 +101,8 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
     setSelectedVariant("")
     setNotes("")
     setCashAvailableInput("")
+    setCoffeeChoiceInput(COFFEE_UNDECIDED)
+    setCoffeeNoteInput("")
     setEditingOrder(null)
     setError(null)
     setSuccess(null)
@@ -109,6 +117,8 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       setSelectedVariant(order.variant)
       setNotes(order.notes || "")
       setCashAvailableInput(order.cash_available_all > 0 ? String(order.cash_available_all) : "")
+      setCoffeeChoiceInput(order.coffee_choice ?? COFFEE_UNDECIDED)
+      setCoffeeNoteInput(order.coffee_note || "")
     }
     setShowOrderDialog(true)
   }
@@ -161,6 +171,12 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
       return
     }
 
+    if (coffeeChoiceInput === "other" && !coffeeNoteInput.trim()) {
+      setError("Say what they'd like, or pick a different coffee option")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const payload = {
         user_id: selectedUserId,
@@ -168,6 +184,8 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
         variant: selectedVariant,
         notes: notes.trim() || null,
         cash_available_all: normalizedCashAvailableAll,
+        coffee_choice: coffeeChoiceInput === COFFEE_UNDECIDED ? null : coffeeChoiceInput,
+        coffee_note: coffeeChoiceInput === "other" ? coffeeNoteInput.trim() : null,
         friday_date: fridayDate,
       }
 
@@ -259,6 +277,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
             <div className="space-y-2">
               {orders.map((order) => {
                 const menuMatch = menuItems.find((item) => item.item === order.item && item.variant === order.variant)
+                const coffeeLabel = formatCoffeeChoice(order.coffee_choice, order.coffee_note)
                 return (
                   <div key={order.id} className="flex flex-col gap-1 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -277,6 +296,7 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                         <p className="text-xs text-muted-foreground">Cash today: {formatLekPrice(order.cash_available_all)}</p>
                       )}
                       {order.notes && <p className="text-xs text-muted-foreground italic">"{order.notes}"</p>}
+                      {coffeeLabel && <p className="text-xs text-muted-foreground">After lunch: {coffeeLabel}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => handleOpenDialog(order)} disabled={order.locked}>
@@ -381,6 +401,38 @@ export const AdminOrderManagement = forwardRef<AdminOrderManagementHandle, Admin
                   <p className="text-xs text-muted-foreground">
                     This feeds the team cash planner and change optimizer.
                   </p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="coffee-select">After-Lunch Coffee</Label>
+                  <Select value={coffeeChoiceInput} onValueChange={setCoffeeChoiceInput}>
+                    <SelectTrigger className="bg-background text-foreground border-border">
+                      <SelectValue placeholder="Still deciding" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background text-foreground border border-border">
+                      <SelectItem className="focus:bg-accent focus:text-accent-foreground" value={COFFEE_UNDECIDED}>
+                        Still deciding
+                      </SelectItem>
+                      {COFFEE_CHOICES.map((option) => (
+                        <SelectItem
+                          className="focus:bg-accent focus:text-accent-foreground"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.emoji} {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {coffeeChoiceInput === "other" && (
+                    <Input
+                      id="coffee-note-input"
+                      placeholder="What would they like?"
+                      value={coffeeNoteInput}
+                      maxLength={COFFEE_NOTE_MAX}
+                      onChange={(e) => setCoffeeNoteInput(e.target.value)}
+                    />
+                  )}
                 </div>
 
                 {error && (

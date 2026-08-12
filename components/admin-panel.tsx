@@ -22,6 +22,7 @@ import { TeamManagement } from "@/components/team-management"
 import { VendorPicker } from "@/components/vendor-picker"
 import { getCurrentFriday, formatFridayDate } from "@/lib/utils/time"
 import { formatLekPrice, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
+import { formatCoffeeChoice, summarizeCoffee } from "@/lib/coffee"
 import type { Order, Event, MenuItem, User, Team, Vendor } from "@/lib/types"
 import { Lock, Unlock, Download, Settings, Users, Eye, Printer, MessageCircle, MessageSquare, Plus, Trash2, AlertTriangle, Shield } from "lucide-react"
 
@@ -410,7 +411,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       })
 
       csvLines.push("")
-      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Cash Available (ALL)", "Quantity", "Name", "Email", "Phone", "Notes", "Order Time"])
+      pushRow(["Section", "Item", "Variant", "Unit Price (ALL)", "Line Total (ALL)", "Cash Available (ALL)", "Quantity", "Name", "Email", "Phone", "Notes", "Coffee", "Order Time"])
       sortedGroups.forEach((group) => {
         pushRow([
           "Group Total",
@@ -420,6 +421,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           group.priceAll != null ? group.priceAll * group.orders.length : "",
           group.orders.reduce((sum, entry) => sum + (entry.cash_available_all || 0), 0),
           group.orders.length,
+          "",
           "",
           "",
           "",
@@ -445,10 +447,24 @@ export function AdminPanel({ user }: AdminPanelProps) {
             entry.user?.email ?? "",
             entry.user?.phone ?? "",
             entry.notes ?? "",
+            formatCoffeeChoice(entry.coffee_choice, entry.coffee_note) ?? "",
             new Date(entry.created_at).toLocaleString(),
           ])
         })
       })
+
+      // The coffee happens at a different place than the lunch vendor, so it
+      // gets its own block instead of being folded into the food totals.
+      const coffeeTally = summarizeCoffee(orders)
+      csvLines.push("")
+      pushRow(["Section", "Coffee Run (after lunch)"])
+      pushRow(["Decided", `${coffeeTally.decidedCount}/${coffeeTally.totalCount}`])
+      pushRow(["Drinks To Order", coffeeTally.joiningCount])
+      pushRow(["Drink", "Quantity"])
+      coffeeTally.rows.forEach((row) => pushRow([row.label, row.count]))
+      coffeeTally.others.forEach((entry) => pushRow([`${entry.name}: ${entry.note || "something else"}`, 1]))
+      if (coffeeTally.notJoining.length) pushRow(["Not Joining", coffeeTally.notJoining.join("; ")])
+      if (coffeeTally.stillDeciding.length) pushRow(["Still Deciding", coffeeTally.stillDeciding.join("; ")])
 
       const csvContent = csvLines.join("\n")
 
@@ -493,6 +509,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           '          <td>' + normalize(priceAll ?? "") + '</td>',
           '          <td>' + normalize(order.cash_available_all ?? "") + '</td>',
           '          <td>' + normalize(order.notes) + '</td>',
+          '          <td>' + normalize(formatCoffeeChoice(order.coffee_choice, order.coffee_note)) + '</td>',
           '          <td>' + createdAt + '</td>',
           '        </tr>',
         ].join("\n")
@@ -558,6 +575,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       '          <th>Price (ALL)</th>',
       '          <th>Cash Today (ALL)</th>',
       '          <th>Notes</th>',
+      '          <th>After Lunch</th>',
       '          <th>Placed At</th>',
       '        </tr>',
       '      </thead>',

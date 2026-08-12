@@ -17,6 +17,8 @@ import { useAuth } from "@/components/auth-provider"
 import { AdminPanel } from "@/components/admin-panel"
 import { AdminOrderInsights } from "@/components/admin-order-insights"
 import { CashPlannerCard } from "@/components/cash-planner-card"
+import { CoffeeRunPrompt } from "@/components/coffee-run-prompt"
+import { CoffeeRunSummary } from "@/components/coffee-run-summary"
 import { ChatPanel } from "@/components/chat-panel"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, Cell } from "recharts"
@@ -31,8 +33,9 @@ import {
   formatFridayDate,
   getOrderingTimeframe,
 } from "@/lib/utils/time"
+import { formatCoffeeChoice, isCoffeeChoice, type CoffeeChoice } from "@/lib/coffee"
 import type { User, MenuItem, Order, OrderSummary, Vendor } from "@/lib/types"
-import { Clock, Users, ShoppingBag, LogOut, Trash2, ChevronDown, PartyPopper, Flame, Sparkles, UtensilsCrossed, MessageCircle } from "lucide-react"
+import { Clock, Users, ShoppingBag, LogOut, Trash2, ChevronDown, PartyPopper, Flame, Sparkles, UtensilsCrossed, MessageCircle, Coffee } from "lucide-react"
 
 interface OrderingInterfaceProps { user: User }
 
@@ -250,6 +253,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const [notes, setNotes] = useState("")
   const [phone, setPhone] = useState(user.phone || "")
   const [cashAvailableInput, setCashAvailableInput] = useState("")
+  const [coffeeChoice, setCoffeeChoice] = useState<CoffeeChoice | null>(null)
+  const [coffeeNote, setCoffeeNote] = useState("")
+  const [showCoffeePrompt, setShowCoffeePrompt] = useState(false)
+  const [isSavingCoffee, setIsSavingCoffee] = useState(false)
   const [fridayDate, setFridayDate] = useState<string | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [activeVendorId, setActiveVendorId] = useState<string | null>(null)
@@ -295,6 +302,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
   const selectedMenuPrice = formatLekPrice(selectedMenuItem?.price_all)
   const currentOrderPriceLabel = currentOrder ? getOrderPriceLabel(currentOrder.item, currentOrder.variant) : null
   const currentOrderCashLabel = currentOrder ? formatLekPrice(currentOrder.cash_available_all) : null
+  const coffeeLabel = formatCoffeeChoice(coffeeChoice, coffeeNote)
 
   const orderSummary = useMemo(() => {
     const summaryMap = new Map<string, OrderSummary>()
@@ -484,8 +492,12 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         setSelectedVariant(currentOrderData.variant)
         setNotes(currentOrderData.notes || "")
         setCashAvailableInput(currentOrderData.cash_available_all > 0 ? String(currentOrderData.cash_available_all) : "")
+        setCoffeeChoice(isCoffeeChoice(currentOrderData.coffee_choice) ? currentOrderData.coffee_choice : null)
+        setCoffeeNote(currentOrderData.coffee_note || "")
       } else {
         setCashAvailableInput("")
+        setCoffeeChoice(null)
+        setCoffeeNote("")
       }
     } catch (e) {
       console.error("Error fetching data:", e)
@@ -566,6 +578,8 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
         await supabase.from("events").insert({ type: "order_created", user_id: user.id, payload: orderData })
         toast.success("You're in! Tony knows what you want")
         fireConfetti()
+        // Settle the after-lunch round while everyone's still at their desk.
+        setShowCoffeePrompt(true)
       }
 
       if (phone !== user.phone) await supabase.from("users").update({ phone }).eq("id", user.id)
@@ -609,12 +623,63 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
       setSelectedVariant("")
       setNotes("")
       setCashAvailableInput("")
+      setCoffeeChoice(null)
+      setCoffeeNote("")
       toast.success("Order cancelled. Changed your mind? You can re-order anytime before noon.")
       await fetchData(fridayDate)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to cancel order")
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  // The coffee pick is the one field the lunch form doesn't own, so it has
+  // exactly one write path. Targets the row by (user_id, friday_date) — the
+  // table's unique key — so it works even if `currentOrder` hasn't landed yet
+  // right after an insert.
+  const handleSaveCoffee = async (choice: CoffeeChoice, note: string) => {
+    if (!fridayDate) {
+      toast.error("Ordering date unavailable. Please try again shortly.")
+      return
+    }
+
+    setIsSavingCoffee(true)
+
+    const payload = {
+      coffee_choice: choice,
+      coffee_note: choice === "other" ? note.trim() : null,
+    }
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update(payload)
+        .eq("user_id", user.id)
+        .eq("friday_date", fridayDate)
+
+      if (error) throw error
+
+      await supabase.from("events").insert({
+        type: "coffee_choice_set",
+        user_id: user.id,
+        payload: { friday_date: fridayDate, ...payload },
+      })
+
+      setCoffeeChoice(choice)
+      setCoffeeNote(payload.coffee_note ?? "")
+      setShowCoffeePrompt(false)
+      toast.success(
+        choice === "none"
+          ? "Noted — no coffee for you this week."
+          : `Coffee sorted: ${formatCoffeeChoice(choice, payload.coffee_note)}`,
+      )
+      await fetchData(fridayDate)
+    } catch (e) {
+      // Modal stays open on failure so the pick isn't lost.
+      toast.error(e instanceof Error ? e.message : "Couldn't save your coffee pick. Try again!")
+    } finally {
+      setIsSavingCoffee(false)
     }
   }
 
@@ -1122,6 +1187,34 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                           </p>
                         </div>
 
+                        {/* Coffee rides along with the order, so the strip only
+                            appears once there's a row to attach it to. */}
+                        {currentOrder && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-white/60 px-3 py-2.5 dark:bg-white/5"
+                          >
+                            <div className="flex min-w-0 items-center gap-2 text-sm">
+                              <Coffee className="h-4 w-4 shrink-0 text-primary" />
+                              <span className="truncate">
+                                <span className="text-muted-foreground">After lunch: </span>
+                                {coffeeLabel ?? <span className="italic text-muted-foreground">not decided yet</span>}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 shrink-0 rounded-full px-3 text-xs"
+                              onClick={() => setShowCoffeePrompt(true)}
+                              disabled={!canOrder || isLoading || isDeleting}
+                            >
+                              {coffeeChoice ? "Change" : "Choose"}
+                            </Button>
+                          </motion.div>
+                        )}
+
                         <motion.div whileHover={canOrder ? { scale: 1.02 } : {}} whileTap={canOrder ? { scale: 0.98 } : {}}>
                           <Button
                             type="submit"
@@ -1368,6 +1461,10 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                       )}
                     </div>
                   </div>
+
+                  <Separator />
+
+                  <CoffeeRunSummary orders={orders} />
                 </CardContent>
               </Card>
             </motion.div>
@@ -1490,6 +1587,15 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           )}
         </motion.div>
       </div>
+
+      <CoffeeRunPrompt
+        open={showCoffeePrompt}
+        onOpenChange={setShowCoffeePrompt}
+        choice={coffeeChoice}
+        note={coffeeNote}
+        isSaving={isSavingCoffee}
+        onSave={handleSaveCoffee}
+      />
 
       <div className="fixed inset-x-4 bottom-4 z-50 w-auto sm:inset-x-auto sm:right-6 sm:bottom-16 sm:w-[min(460px,92vw)] lg:bottom-10 lg:w-[480px] xl:bottom-8">
         <ChatPanel currentUser={user} />

@@ -1,8 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireTeamAdmin, isErrorResponse } from "@/lib/supabase/auth-helpers"
+import { COFFEE_NOTE_MAX, isCoffeeChoice, type CoffeeChoice } from "@/lib/coffee"
 
 const DEFAULT_DAY_OF_WEEK = 5
+
+const COFFEE_ERROR = 'coffee_choice must be a known option, and "other" requires a note'
 
 function nextDateStringForDay(dayOfWeek: number): string {
   const now = new Date()
@@ -33,6 +36,26 @@ function normalizeCashAvailableAll(value: unknown): number | null {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
+}
+
+type CoffeeFields = { coffee_choice: CoffeeChoice | null; coffee_note: string | null }
+
+/**
+ * The two coffee columns only make sense as a pair, so they're normalized as
+ * one — mirroring the orders_coffee_note_matches_choice DB constraint.
+ * Returns null when the input can't be made valid.
+ */
+function normalizeCoffee(choice: unknown, note: unknown): CoffeeFields | null {
+  if (choice == null || choice === "") return { coffee_choice: null, coffee_note: null }
+  if (!isCoffeeChoice(choice)) return null
+
+  if (choice === "other") {
+    const trimmed = typeof note === "string" ? note.trim() : ""
+    if (!trimmed) return null
+    return { coffee_choice: "other", coffee_note: trimmed.slice(0, COFFEE_NOTE_MAX) }
+  }
+
+  return { coffee_choice: choice, coffee_note: null }
 }
 
 function resolveTargetTeam(url: URL, gate: { role: string; teamAdminFor: string | null; teamId: string }): string | null {
@@ -100,7 +123,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { user_id, item, variant, notes, friday_date, cash_available_all, team_id: requestTeamId } = body
+  const {
+    user_id,
+    item,
+    variant,
+    notes,
+    friday_date,
+    cash_available_all,
+    coffee_choice,
+    coffee_note,
+    team_id: requestTeamId,
+  } = body
 
   if (!user_id || !item || !variant) {
     return NextResponse.json({ error: "user_id, item, and variant are required" }, { status: 400 })
@@ -128,6 +161,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
   }
 
+  const coffee = normalizeCoffee(coffee_choice, coffee_note)
+  if (coffee == null) {
+    return NextResponse.json({ error: COFFEE_ERROR }, { status: 400 })
+  }
+
   const fridayDate = friday_date || (await resolveOrderingDateForTeam(probe.admin, effectiveTeam))
 
   const { data, error } = await probe.admin
@@ -139,6 +177,7 @@ export async function POST(request: NextRequest) {
       variant,
       notes: notes?.trim() || null,
       cash_available_all: normalizedCashAvailableAll,
+      ...coffee,
       friday_date: fridayDate,
     })
     .select("*, user:users(id, name, email, phone, team_id)")
@@ -173,6 +212,24 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "cash_available_all must be a non-negative whole number" }, { status: 400 })
     }
     updates.cash_available_all = normalized
+  }
+
+  // Both coffee columns travel together — accepting a lone note would either
+  // wipe the choice or break the DB constraint.
+  const hasCoffeeChoice = Object.prototype.hasOwnProperty.call(updates, "coffee_choice")
+  const hasCoffeeNote = Object.prototype.hasOwnProperty.call(updates, "coffee_note")
+
+  if (hasCoffeeNote && !hasCoffeeChoice) {
+    return NextResponse.json({ error: "coffee_note must be sent together with coffee_choice" }, { status: 400 })
+  }
+
+  if (hasCoffeeChoice) {
+    const coffee = normalizeCoffee(updates.coffee_choice, updates.coffee_note)
+    if (coffee == null) {
+      return NextResponse.json({ error: COFFEE_ERROR }, { status: 400 })
+    }
+    updates.coffee_choice = coffee.coffee_choice
+    updates.coffee_note = coffee.coffee_note
   }
 
   const { data, error } = await probe.admin

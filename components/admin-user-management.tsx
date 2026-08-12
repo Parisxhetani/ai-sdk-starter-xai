@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { User, Order, MenuItem } from "@/lib/types"
 import { formatLekPrice, formatOrderLine, getMenuItemLookupKey } from "@/lib/utils"
+import { formatCoffeeChoice } from "@/lib/coffee"
 import { ShieldCheck, ShieldOff, UsersRound, Edit3, KeyRound, Trash2 } from "lucide-react"
 
 interface AdminUserManagementProps {
@@ -223,6 +224,9 @@ export function AdminUserManagement({ users, orders, menuItems, currentUserId, o
                     </span>
                     {currentOrder.cash_available_all > 0 && <span>Cash: {formatLekPrice(currentOrder.cash_available_all)}</span>}
                     {currentOrder.notes && <span className="italic">"{currentOrder.notes}"</span>}
+                    {formatCoffeeChoice(currentOrder.coffee_choice, currentOrder.coffee_note) && (
+                      <span>{formatCoffeeChoice(currentOrder.coffee_choice, currentOrder.coffee_note)}</span>
+                    )}
                     {currentOrder.locked && <Badge variant="outline">Locked</Badge>}
                   </div>
                 ) : (

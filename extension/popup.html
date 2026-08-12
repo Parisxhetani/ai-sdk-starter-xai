@@ -72,6 +72,16 @@
           <textarea id="notes-input" maxlength="100" rows="3" placeholder="No onions, extra sauce..."></textarea>
         </label>
 
+        <label class="field">
+          <span>After-Lunch Coffee <small>(the second place)</small></span>
+          <select id="coffee-select"></select>
+        </label>
+
+        <label class="field hidden" id="coffee-note-field">
+          <span>What would you like?</span>
+          <input type="text" id="coffee-note-input" maxlength="60" placeholder="Chamomile tea, macchiato..." />
+        </label>
+
         <button type="submit" id="submit-order-button">Place Order</button>
       </form>
 

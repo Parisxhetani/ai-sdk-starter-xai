@@ -1,3 +1,5 @@
+import type { CoffeeChoice } from "@/lib/coffee"
+
 export type TeamSlug = "CORE" | "BLUE" | "PURPLE" | "PINK" | "ORANGE" | "GREEN" | (string & {})
 
 export interface Vendor {
@@ -65,6 +67,10 @@ export interface Order {
   variant: string
   notes?: string
   cash_available_all: number
+  /** After-lunch drink. null/undefined = still deciding, "none" = not joining. */
+  coffee_choice?: CoffeeChoice | null
+  /** Free-text drink, only set when coffee_choice === "other". */
+  coffee_note?: string | null
   locked: boolean
   created_at: string
   updated_at: string

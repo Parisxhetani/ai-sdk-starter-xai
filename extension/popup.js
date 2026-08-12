@@ -13,6 +13,9 @@ const cashAvailableInput = document.getElementById("cash-available-input")
 const itemSelect = document.getElementById("item-select")
 const variantSelect = document.getElementById("variant-select")
 const notesInput = document.getElementById("notes-input")
+const coffeeSelect = document.getElementById("coffee-select")
+const coffeeNoteField = document.getElementById("coffee-note-field")
+const coffeeNoteInput = document.getElementById("coffee-note-input")
 const submitOrderButton = document.getElementById("submit-order-button")
 const ordersListEl = document.getElementById("orders-list")
 const ordersCountEl = document.getElementById("orders-count")
@@ -31,6 +34,26 @@ let windowInterval
 const DEFAULT_START = "09:00"
 const DEFAULT_END = "12:30"
 const DEFAULT_DAY = 5
+
+// Mirror of COFFEE_CHOICES in lib/coffee.ts. The extension is plain JS with no
+// bundler, so it can't import from the app — keep these values in sync by hand.
+const COFFEE_UNDECIDED = "__undecided__"
+const COFFEE_CHOICES = [
+  { value: "coffee", label: "☕ Coffee" },
+  { value: "coffee_water", label: "☕💧 Coffee + Water" },
+  { value: "coffee_sparkling", label: "☕🫧 Coffee + Sparkling Water" },
+  { value: "water", label: "💧 Water" },
+  { value: "sparkling", label: "🫧 Sparkling Water" },
+  { value: "other", label: "✏️ Something else" },
+  { value: "none", label: "— Not joining" },
+]
+
+function formatCoffeeChoice(choice, note) {
+  if (!choice) return ""
+  if (choice === "other") return `✏️ ${note || "something else"}`
+  const match = COFFEE_CHOICES.find((entry) => entry.value === choice)
+  return match ? match.label : ""
+}
 
 function formatPrice(priceAll) {
   if (typeof priceAll !== "number" || Number.isNaN(priceAll) || priceAll <= 0) return ""
@@ -314,13 +337,13 @@ async function loadOrders() {
   const [{ data: orderData, error: orderError }, { data: teamData, error: teamError }] = await Promise.all([
     supabaseClient
       .from("orders")
-      .select("id, item, variant, notes, cash_available_all, locked, friday_date")
+      .select("id, item, variant, notes, cash_available_all, coffee_choice, coffee_note, locked, friday_date")
       .eq("user_id", activeUser.id)
       .eq("friday_date", fridayDate)
       .maybeSingle(),
     supabaseClient
       .from("orders")
-      .select("id, item, variant, notes, cash_available_all, locked, user:users(name)")
+      .select("id, item, variant, notes, cash_available_all, coffee_choice, coffee_note, locked, user:users(name)")
       .eq("friday_date", fridayDate)
       .order("created_at", { ascending: true })
   ])
@@ -335,8 +358,33 @@ async function loadOrders() {
 function synchronizeMenu() {
   populateItems()
   populateVariants()
+  populateCoffee()
   notesInput.value = currentOrder?.notes || ""
   cashAvailableInput.value = currentOrder?.cash_available_all > 0 ? String(currentOrder.cash_available_all) : ""
+}
+
+function syncCoffeeNoteVisibility() {
+  coffeeNoteField.classList.toggle("hidden", coffeeSelect.value !== "other")
+}
+
+function populateCoffee() {
+  if (!coffeeSelect.options.length) {
+    const undecided = document.createElement("option")
+    undecided.value = COFFEE_UNDECIDED
+    undecided.textContent = "Still deciding"
+    coffeeSelect.appendChild(undecided)
+
+    COFFEE_CHOICES.forEach((choice) => {
+      const option = document.createElement("option")
+      option.value = choice.value
+      option.textContent = choice.label
+      coffeeSelect.appendChild(option)
+    })
+  }
+
+  coffeeSelect.value = currentOrder?.coffee_choice || COFFEE_UNDECIDED
+  coffeeNoteInput.value = currentOrder?.coffee_note || ""
+  syncCoffeeNoteVisibility()
 }
 
 function populateItems() {
@@ -391,6 +439,8 @@ function refreshForm() {
     variantSelect.disabled = disabled
     notesInput.disabled = disabled
     cashAvailableInput.disabled = disabled
+    coffeeSelect.disabled = disabled
+    coffeeNoteInput.disabled = disabled
     if (locked) {
       showStatus("Orders are locked for this week.", "error", 4000)
     }
@@ -417,9 +467,11 @@ function updateSummary() {
       typeof order.cash_available_all === "number" && order.cash_available_all > 0
         ? ` | Cash ALL ${order.cash_available_all}`
         : ""
+    const coffee = formatCoffeeChoice(order.coffee_choice, order.coffee_note)
+    const coffeeLabel = coffee ? ` | ${coffee}` : ""
     li.textContent = `${name}: ${order.item}${order.variant ? ` (${order.variant})` : ""}${formatPrice(
       getMenuPrice(order.item, order.variant)
-    )}${cashLabel}`
+    )}${cashLabel}${coffeeLabel}`
     ordersListEl.appendChild(li)
   })
 }
@@ -460,6 +512,10 @@ signOutButton.addEventListener("click", async () => {
   showStatus("Signed out", "success", 2000)
 })
 
+coffeeSelect.addEventListener("change", () => {
+  syncCoffeeNoteVisibility()
+})
+
 itemSelect.addEventListener("change", () => {
   populateVariants()
 })
@@ -485,6 +541,12 @@ orderForm.addEventListener("submit", async (event) => {
       throw new Error("Cash today must be a whole number or left blank.")
     }
 
+    const coffeeChoice = coffeeSelect.value === COFFEE_UNDECIDED ? null : coffeeSelect.value
+    const coffeeNote = coffeeChoice === "other" ? coffeeNoteInput.value.trim() : null
+    if (coffeeChoice === "other" && !coffeeNote) {
+      throw new Error("Say what you'd like after lunch, or pick another coffee option.")
+    }
+
     const fridayDate = formatFridayDate(getCurrentFriday())
     const payload = {
       user_id: activeUser.id,
@@ -492,7 +554,9 @@ orderForm.addEventListener("submit", async (event) => {
       item,
       variant,
       notes: notes || null,
-      cash_available_all: cashAvailableAll
+      cash_available_all: cashAvailableAll,
+      coffee_choice: coffeeChoice,
+      coffee_note: coffeeNote
     }
 
     if (currentOrder) {
