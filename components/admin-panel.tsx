@@ -971,7 +971,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <div className="space-y-2">
               <Label htmlFor="tony-phone">Tony's phone number</Label>
               <Input
@@ -1004,7 +1004,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
           </div>
           <div className="space-y-3 rounded-lg border border-dashed border-border/70 p-4">
             <p className="text-sm font-medium">Send yourself a test first</p>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
               <div className="space-y-2">
                 <Label htmlFor="test-phone">Test recipient</Label>
                 <Input
@@ -1048,7 +1048,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
       </Card>
 
       {/* Order Status */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -1117,7 +1117,7 @@ export function AdminPanel({ user }: AdminPanelProps) {
             {Array.from(new Set(menuItems.map((item) => item.item))).map((itemName) => (
               <div key={itemName}>
                 <h4 className="font-medium mb-2">{itemName}</h4>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {menuItems
                     .filter((item) => item.item === itemName)
                     .map((menuItem) => {

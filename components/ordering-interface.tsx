@@ -857,7 +857,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                 </div>
 
                 {/* ── Stats Grid ──────────────────────────────────────── */}
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {/* Window Status */}
                   <motion.div
                     variants={cardHover}
@@ -984,7 +984,7 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
           </motion.div>
 
           {/* ── Main Content Grid ─────────────────────────────────── */}
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
 
             {/* ── Order Form ─────────────────────────────────────── */}
             <motion.div variants={staggerItem}>
@@ -1331,20 +1331,29 @@ export function OrderingInterface({ user }: OrderingInterfaceProps) {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="h-56 w-full rounded-[1.5rem] border border-white/50 bg-white/70 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
+                        // overflow-hidden: recharts paints angled tick labels
+                        // outside its SVG box, which bled past the viewport edge
+                        // on narrow screens. Contain it here rather than trusting
+                        // the chart's own bounds.
+                        className="h-56 w-full overflow-hidden rounded-[1.5rem] border border-white/50 bg-white/70 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
                       >
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={topItemData}>
+                          <BarChart data={topItemData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                             <CartesianGrid stroke="#E1F2FF" strokeDasharray="3 3" vertical={false} />
                             <XAxis
                               dataKey="label"
-                              tick={{ fill: "var(--field-text)", fontSize: 12 }}
+                              tick={{ fill: "var(--field-text)", fontSize: 11 }}
                               tickLine={false}
                               axisLine={{ stroke: "var(--border)" }}
                               height={48}
                               interval={0}
                               angle={-15}
                               textAnchor="end"
+                              // Full label lives in the Order Summary list below,
+                              // so the axis only needs enough to identify the bar.
+                              tickFormatter={(value: string) =>
+                                value.length > 14 ? `${value.slice(0, 13)}…` : value
+                              }
                             />
                             <YAxis
                               allowDecimals={false}

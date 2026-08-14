@@ -754,7 +754,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
           </Card>
           
           {/* Stats Cards */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -831,7 +831,7 @@ ${currentOrder.notes ? `📝 Notes: ${currentOrder.notes}` : ""}
           </div>
           
           {/* Main Content Grid */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Order Form */}
             <Card className="lg:col-span-2">
               <CardHeader>

@@ -87,23 +87,26 @@ export function AdminOrderInsights({ orders, menuItems, users }: AdminOrderInsig
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card className="bg-background/70">
         <CardHeader>
           <CardTitle>Top Ordered Items</CardTitle>
         </CardHeader>
-        <CardContent className="h-72">
+        {/* overflow-hidden: angled tick labels are painted outside the chart's
+            SVG box and bled past the viewport edge on narrow screens. */}
+        <CardContent className="h-72 overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={itemData}>
+            <BarChart data={itemData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="label"
-                tick={{ fill: "var(--field-text)" }}
+                tick={{ fill: "var(--field-text)", fontSize: 11 }}
                 tickLine={false}
                 angle={-15}
                 textAnchor="end"
                 height={60}
                 interval={0}
+                tickFormatter={(value: string) => (value.length > 14 ? `${value.slice(0, 13)}…` : value)}
               />
               <YAxis allowDecimals={false} tick={{ fill: "var(--field-text)" }} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
               <RechartsTooltip

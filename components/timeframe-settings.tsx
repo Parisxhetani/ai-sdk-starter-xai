@@ -115,7 +115,7 @@ export function TimeframeSettings({ user }: TimeframeSettingsProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="grid gap-2">
             <Label htmlFor="start-time">Start Time</Label>
             <Input
@@ -174,11 +174,11 @@ export function TimeframeSettings({ user }: TimeframeSettingsProps) {
           </Alert>
         )}
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 text-sm text-muted-foreground">
             Current window: {currentDayLabel}, {startTimeVal || "-"} - {endTimeVal || "-"} (Europe/Tirane)
           </p>
-          <Button onClick={handleSave} disabled={isLoading}>
+          <Button onClick={handleSave} disabled={isLoading} className="shrink-0">
             <Save className="mr-2 h-4 w-4" />
             {isLoading ? "Saving..." : "Save Changes"}
           </Button>

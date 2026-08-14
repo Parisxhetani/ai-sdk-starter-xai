@@ -41,7 +41,7 @@ export function CashPlannerCard({ orders, menuItems, title = "Cash Planner" }: C
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">Food Total</p>
             <p className="text-lg font-semibold">{formatLekPrice(plan.totalCostAll) ?? "ALL 0"}</p>

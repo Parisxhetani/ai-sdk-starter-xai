@@ -53,7 +53,9 @@ export function CoffeeRunPrompt({ open, onOpenChange, choice, note, isSaving, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[1.75rem] border-white/60 bg-white/90 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/90">
+      {/* w-[calc(100%-1.5rem)] keeps a gutter instead of sitting edge-to-edge on
+          a phone; max-h/overflow-y keeps every option reachable on short screens. */}
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1.5rem)] max-w-md overflow-y-auto rounded-[1.75rem] border-white/60 bg-white/90 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/90">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <motion.span

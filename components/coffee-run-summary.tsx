@@ -91,29 +91,31 @@ export function CoffeeRunSummary({ orders, className }: CoffeeRunSummaryProps) {
                   variants={staggerItem}
                   className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1"
                 >
-                  <span className="flex items-center gap-2 text-sm">
-                    <span>{row.emoji}</span>
-                    {row.label}
+                  <span className="flex min-w-0 items-center gap-2 text-sm">
+                    <span className="shrink-0">{row.emoji}</span>
+                    <span className="min-w-0 break-words">{row.label}</span>
                   </span>
-                  <span className="text-lg font-semibold leading-none tabular-nums">{row.count}</span>
+                  <span className="shrink-0 text-lg font-semibold leading-none tabular-nums">{row.count}</span>
                 </motion.div>
               ))}
 
-              {/* Free text can't be split into items, so each one is its own line. */}
+              {/* Free text can't be split into items, so each one is its own line.
+                  Wraps rather than truncating — a custom order you can't finish
+                  reading is no use at the counter, and neither is a cut-off name. */}
               {tally.others.map((entry, index) => (
                 <motion.div
                   key={`other-${index}-${entry.name}`}
                   variants={staggerItem}
-                  className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1"
+                  className="flex items-start justify-between gap-2 rounded-lg px-1.5 py-1"
                 >
-                  <span className="flex min-w-0 items-center gap-2 text-sm">
-                    <span>✏️</span>
-                    <span className="truncate">
-                      {entry.note || "something else"}
-                      <span className="text-muted-foreground"> · {entry.name}</span>
+                  <span className="flex min-w-0 items-start gap-2 text-sm">
+                    <span className="shrink-0 leading-5">✏️</span>
+                    <span className="min-w-0">
+                      <span className="block break-words leading-5">{entry.note || "something else"}</span>
+                      <span className="block break-words text-xs text-muted-foreground">{entry.name}</span>
                     </span>
                   </span>
-                  <span className="text-lg font-semibold leading-none tabular-nums">1</span>
+                  <span className="shrink-0 text-lg font-semibold leading-none tabular-nums">1</span>
                 </motion.div>
               ))}
 

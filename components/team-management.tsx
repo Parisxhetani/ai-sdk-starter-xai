@@ -161,12 +161,12 @@ export function TeamManagement({ currentUser, teams, users, onChange }: TeamMana
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+        <CardTitle className="flex min-w-0 items-center gap-2">
+          <Shield className="h-5 w-5 shrink-0" />
           Teams Management
         </CardTitle>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
+        <Button size="sm" className="shrink-0" onClick={() => setShowCreate(true)}>
           <Plus className="mr-2 h-4 w-4" /> New Team
         </Button>
       </CardHeader>
@@ -206,7 +206,7 @@ export function TeamManagement({ currentUser, teams, users, onChange }: TeamMana
                 {!team.active && <Badge variant="outline">Inactive</Badge>}
               </div>
               {members.length > 0 && (
-                <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {members.map((m) => (
                     <div
                       key={m.id}
