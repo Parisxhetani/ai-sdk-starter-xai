@@ -458,11 +458,21 @@ export function AdminPanel({ user }: AdminPanelProps) {
       const coffeeTally = summarizeCoffee(orders)
       csvLines.push("")
       pushRow(["Section", "Coffee Run (after lunch)"])
+      pushRow(["People Joining", coffeeTally.joiningCount])
+      pushRow(["Drinks To Order", coffeeTally.itemCount])
       pushRow(["Decided", `${coffeeTally.decidedCount}/${coffeeTally.totalCount}`])
-      pushRow(["Drinks To Order", coffeeTally.joiningCount])
-      pushRow(["Drink", "Quantity"])
+
+      // Combos split into items — the list you read at the counter.
+      csvLines.push("")
+      pushRow(["To Order At The Bar", "Quantity"])
+      coffeeTally.itemRows.forEach((row) => pushRow([row.label, row.count]))
+      coffeeTally.others.forEach((entry) => pushRow([`${entry.note || "something else"} (${entry.name})`, 1]))
+
+      // Per-person picks — how the tray gets handed out.
+      csvLines.push("")
+      pushRow(["Who Picked What", "Quantity"])
       coffeeTally.rows.forEach((row) => pushRow([row.label, row.count]))
-      coffeeTally.others.forEach((entry) => pushRow([`${entry.name}: ${entry.note || "something else"}`, 1]))
+      coffeeTally.others.forEach((entry) => pushRow([`Something else — ${entry.name}`, 1]))
       if (coffeeTally.notJoining.length) pushRow(["Not Joining", coffeeTally.notJoining.join("; ")])
       if (coffeeTally.stillDeciding.length) pushRow(["Still Deciding", coffeeTally.stillDeciding.join("; ")])
 

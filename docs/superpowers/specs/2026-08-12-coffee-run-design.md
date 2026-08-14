@@ -46,6 +46,42 @@ Every teammate picks one of:
    deadline would buy nothing and cost an extra enable/disable rule in three
    places.
 
+## Two levels of counting
+
+A person picks a *combo*; the bar takes *items*. "Four coffees and two
+coffee-and-waters" isn't sayable at a counter — "six coffees, two waters" is.
+
+So each entry in `COFFEE_CHOICES` declares what it decomposes into via an
+`items` field, and the item totals are **derived** rather than maintained
+separately:
+
+| Combo | Items |
+| --- | --- |
+| `coffee` | coffee |
+| `coffee_water` | coffee + water |
+| `coffee_sparkling` | coffee + sparkling |
+| `water` | water |
+| `sparkling` | sparkling |
+| `other`, `none` | — |
+
+The `satisfies readonly {…, items: readonly CoffeeItem[]}[]` clause on
+`COFFEE_CHOICES` makes a typo in an `items` array a compile error instead of a
+silently missing drink.
+
+Consequences worth stating, since conflating them is the easy bug:
+
+- `joiningCount` counts **people** getting something.
+- `itemCount` counts **drinks** to carry back. It's larger whenever anyone took
+  a combo.
+- Item totals appear in canonical order (coffee, water, sparkling), never by
+  count, so the list reads the same way every week.
+- `other` can't be decomposed, so each custom request stays its own named line
+  in the bar order.
+
+The per-person combo breakdown is only rendered when `hasCoffeeCombos()` is
+true — with no combos present it would repeat the bar order verbatim. The card
+and the copy payload share that one predicate so they can't disagree.
+
 ## Data model
 
 Two nullable columns on `orders` (`scripts/014_add_order_coffee_choice.sql`):
@@ -79,8 +115,11 @@ actually happens.
   Adding a drink later is a one-line edit in `COFFEE_CHOICES`.
 - **`components/coffee-run-prompt.tsx`** — the modal. Tapping any of the five
   drinks saves and closes in one action; only `other` needs a second step.
-- **`components/coffee-run-summary.tsx`** — the tally section, plus the Copy
-  button. Kept out of `ordering-interface.tsx`, which is already ~1500 lines.
+- **`components/coffee-run-summary.tsx`** — the tally, in two blocks answering
+  two different questions: **To order at the bar** (item totals, styled as the
+  primary list, because it's the actionable one) and **Who picked what** (combos,
+  muted, for handing the tray out). Plus the Copy button. Kept out of
+  `ordering-interface.tsx`, which is already ~1500 lines.
 - **`components/ordering-interface.tsx`** — owns the state, the strip, and
   `handleSaveCoffee`, the single write path for these two columns. It targets the
   row by `(user_id, friday_date)` rather than `currentOrder.id`, so it works in
@@ -90,9 +129,11 @@ actually happens.
 
 The coffee is a different place from the lunch vendor, so it never enters the
 Tony's WhatsApp message — that stays lunch-only. The coffee list travels via the
-Copy button on the tally, in Albanian to match the existing vendor message. The
-admin CSV gains a per-order Coffee column plus a standalone Coffee Run block,
-and the print sheet gains an "After Lunch" column.
+Copy button on the tally, in Albanian to match the existing vendor message —
+leading with the bar order (`Për të porositur`) and only then the per-person
+breakdown (`Sipas personit`). The admin CSV gains a per-order Coffee column plus
+a standalone Coffee Run block carrying both levels, and the print sheet gains an
+"After Lunch" column.
 
 The Chrome extension (`extension/popup.*`) also writes orders, so it gets the
 same field — otherwise its rows would read as permanently "still deciding" and
@@ -104,6 +145,8 @@ quietly dent the count. It's plain JS with no bundler and can't import from
 The repo has no test framework, so: `next build` for compile and typecheck (the
 three pre-existing `@types/react` errors in `theme-provider.tsx`, `ui/badge.tsx`
 and `ui/button.tsx` are unrelated and present on a clean tree), plus the pure
-logic in `lib/coffee.ts` exercised directly — an 11-person tally, count-tie
-ordering, empty and all-declined edges, unknown column values, and the copy
-payload text.
+logic in `lib/coffee.ts` exercised directly — an 11-person tally, every combo's
+decomposition one at a time, item totals checked against an independent
+recomputation, drinks-vs-people never conflated, canonical item ordering,
+count-tie ordering, suppression of the redundant breakdown, empty and
+all-declined edges, unknown column values, and the copy payload text.

@@ -14,20 +14,51 @@
 
 export const COFFEE_NOTE_MAX = 60
 
-export const COFFEE_CHOICES = [
-  { value: "coffee", emoji: "☕", label: "Coffee", labelSq: "Kafe" },
-  { value: "coffee_water", emoji: "☕💧", label: "Coffee + Water", labelSq: "Kafe + Ujë" },
-  { value: "coffee_sparkling", emoji: "☕🫧", label: "Coffee + Sparkling Water", labelSq: "Kafe + Ujë me gaz" },
-  { value: "water", emoji: "💧", label: "Water", labelSq: "Ujë" },
-  { value: "sparkling", emoji: "🫧", label: "Sparkling Water", labelSq: "Ujë me gaz" },
-  { value: "other", emoji: "✏️", label: "Something else", labelSq: "Diçka tjetër" },
-  { value: "none", emoji: "—", label: "Not joining", labelSq: "Pa gjë" },
+/**
+ * The things actually handed over the counter. A person picks a *combo*; the
+ * bar takes *items* — "six coffees, two waters" is sayable, "four coffees and
+ * two coffee-and-waters" is not. Listed in the order you'd read them out.
+ */
+export const COFFEE_ITEMS = [
+  { key: "coffee", emoji: "☕", label: "Coffee", labelSq: "Kafe" },
+  { key: "water", emoji: "💧", label: "Water", labelSq: "Ujë" },
+  { key: "sparkling", emoji: "🫧", label: "Sparkling Water", labelSq: "Ujë me gaz" },
 ] as const
+
+export type CoffeeItem = (typeof COFFEE_ITEMS)[number]["key"]
+
+// `items` is what each combo decomposes into, so the bar totals are derived
+// rather than maintained by hand. `satisfies` makes a typo in there a compile
+// error instead of a silently missing drink.
+export const COFFEE_CHOICES = [
+  { value: "coffee", emoji: "☕", label: "Coffee", labelSq: "Kafe", items: ["coffee"] },
+  { value: "coffee_water", emoji: "☕💧", label: "Coffee + Water", labelSq: "Kafe + Ujë", items: ["coffee", "water"] },
+  { value: "coffee_sparkling", emoji: "☕🫧", label: "Coffee + Sparkling Water", labelSq: "Kafe + Ujë me gaz", items: ["coffee", "sparkling"] },
+  { value: "water", emoji: "💧", label: "Water", labelSq: "Ujë", items: ["water"] },
+  { value: "sparkling", emoji: "🫧", label: "Sparkling Water", labelSq: "Ujë me gaz", items: ["sparkling"] },
+  // Free text and the opt-out have nothing countable; "other" is carried
+  // through as its own named line instead.
+  { value: "other", emoji: "✏️", label: "Something else", labelSq: "Diçka tjetër", items: [] },
+  { value: "none", emoji: "—", label: "Not joining", labelSq: "Pa gjë", items: [] },
+] as const satisfies readonly {
+  value: string
+  emoji: string
+  label: string
+  labelSq: string
+  items: readonly CoffeeItem[]
+}[]
 
 export type CoffeeChoice = (typeof COFFEE_CHOICES)[number]["value"]
 export type CoffeeChoiceOption = (typeof COFFEE_CHOICES)[number]
 
 const OPTION_BY_VALUE = new Map<string, CoffeeChoiceOption>(COFFEE_CHOICES.map((option) => [option.value, option]))
+
+// Normalized to `readonly CoffeeItem[]` on purpose: reading `.items` straight
+// off the union of literal option types gives a union of differently-shaped
+// tuples, which can't be iterated without a fight.
+const ITEMS_BY_CHOICE = new Map<string, readonly CoffeeItem[]>(
+  COFFEE_CHOICES.map((option) => [option.value, option.items]),
+)
 
 /** The five drinks that actually get carried back — no "other", no "not joining". */
 export const CONCRETE_COFFEE_CHOICES = COFFEE_CHOICES.filter(
@@ -73,12 +104,27 @@ export interface CoffeeTallyRow {
   count: number
 }
 
+export interface CoffeeItemRow {
+  key: CoffeeItem
+  emoji: string
+  label: string
+  labelSq: string
+  count: number
+}
+
 export interface CoffeeOtherEntry {
   name: string
   note: string
 }
 
 export interface CoffeeTally {
+  /**
+   * What to ask for at the bar: combos split into their parts, so a
+   * Coffee + Water adds one to coffee *and* one to water. Canonical item
+   * order, not by count — you read this list out the same way every week.
+   * Custom requests can't be decomposed and stay in `others`.
+   */
+  itemRows: CoffeeItemRow[]
   /** Countable picks, most wanted first. Excludes "other" and "not joining". */
   rows: CoffeeTallyRow[]
   /** Listed one by one on purpose — merging away a custom request defeats it. */
@@ -89,8 +135,10 @@ export interface CoffeeTally {
   decidedCount: number
   /** People with a lunch order, i.e. everyone who could answer. */
   totalCount: number
-  /** Drinks to actually order. */
+  /** People getting something. Not the drink count — combos are two items. */
   joiningCount: number
+  /** Individual drinks to carry back, custom requests included. */
+  itemCount: number
 }
 
 function displayName(order: CoffeeOrderLike): string {
@@ -99,6 +147,7 @@ function displayName(order: CoffeeOrderLike): string {
 
 export function summarizeCoffee(orders: CoffeeOrderLike[]): CoffeeTally {
   const counts = new Map<CoffeeChoice, number>()
+  const itemCounts = new Map<CoffeeItem, number>()
   const others: CoffeeOtherEntry[] = []
   const notJoining: string[] = []
   const stillDeciding: string[] = []
@@ -120,6 +169,11 @@ export function summarizeCoffee(orders: CoffeeOrderLike[]): CoffeeTally {
     }
 
     counts.set(order.coffee_choice, (counts.get(order.coffee_choice) ?? 0) + 1)
+
+    // One combo can add two items — this is where "4 coffees + 2 combos"
+    // becomes the "6 coffees, 2 waters" you can say out loud.
+    const items = ITEMS_BY_CHOICE.get(order.coffee_choice) ?? []
+    items.forEach((item) => itemCounts.set(item, (itemCounts.get(item) ?? 0) + 1))
   })
 
   // Built in canonical order first, so the stable sort below leaves ties
@@ -134,7 +188,16 @@ export function summarizeCoffee(orders: CoffeeOrderLike[]): CoffeeTally {
     }))
     .sort((a, b) => b.count - a.count)
 
+  const itemRows: CoffeeItemRow[] = COFFEE_ITEMS.filter((item) => itemCounts.has(item.key)).map((item) => ({
+    key: item.key,
+    emoji: item.emoji,
+    label: item.label,
+    labelSq: item.labelSq,
+    count: itemCounts.get(item.key)!,
+  }))
+
   return {
+    itemRows,
     rows,
     others,
     notJoining,
@@ -142,7 +205,17 @@ export function summarizeCoffee(orders: CoffeeOrderLike[]): CoffeeTally {
     decidedCount: orders.length - stillDeciding.length,
     totalCount: orders.length,
     joiningCount: rows.reduce((sum, row) => sum + row.count, 0) + others.length,
+    itemCount: itemRows.reduce((sum, row) => sum + row.count, 0) + others.length,
   }
+}
+
+/**
+ * True when at least one pick bundles two items, which is exactly when the
+ * per-person breakdown says something the bar order doesn't. Shared by the
+ * summary card and the copy payload so they never disagree.
+ */
+export function hasCoffeeCombos(tally: CoffeeTally): boolean {
+  return tally.rows.some((row) => (ITEMS_BY_CHOICE.get(row.choice)?.length ?? 0) > 1)
 }
 
 /**
@@ -157,11 +230,18 @@ export function buildCoffeeRunMessage(tally: CoffeeTally): string {
   }
 
   const lines: string[] = [
-    `Kafe pas buke — ${tally.joiningCount} porosi:`,
+    `Kafe pas buke — ${tally.itemCount} pije për ${tally.joiningCount} veta.`,
     "",
-    ...tally.rows.map((row) => `• ${row.labelSq}: ${row.count}`),
+    "Për të porositur:",
+    ...tally.itemRows.map((row) => `• ${row.labelSq}: ${row.count}`),
     ...tally.others.map((entry) => `• ${entry.name}: ${entry.note || "diçka tjetër"}`),
   ]
+
+  // The per-person breakdown only earns its lines when somebody took a combo;
+  // otherwise it repeats the order list verbatim.
+  if (hasCoffeeCombos(tally)) {
+    lines.push("", "Sipas personit:", ...tally.rows.map((row) => `• ${row.labelSq}: ${row.count}`))
+  }
 
   if (tally.stillDeciding.length > 0) {
     lines.push("", `Pa vendosur: ${tally.stillDeciding.join(", ")}`)
